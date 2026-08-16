@@ -60,6 +60,7 @@ def train_remote(
     pre_nms_topk: int = 0,
     amp: bool = False,
     no_pretrained_backbone: bool = False,
+    resume_model_only: bool = False,
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +100,8 @@ def train_remote(
         command.append("--amp")
     if no_pretrained_backbone:
         command.append("--no_pretrained_backbone")
+    if resume_model_only:
+        command.append("--resume_model_only")
 
     print("Running training command:")
     print(" ".join(shlex.quote(part) for part in command))
@@ -281,6 +284,55 @@ def mine_hard_examples_remote(
     return {"weights": str(output_path), "summary": summary}
 
 
+@app.function(
+    volumes={str(VOLUME_MOUNT): volume},
+    cpu=4.0,
+    memory=8192,
+    timeout=3 * 60 * 60,
+)
+def tune_val_remote(
+    run_name: str = DEFAULT_RUN_NAME,
+    predictions_name: str = "val_predictions_tta.json",
+    output_name: str = "threshold_tuning.json",
+    thresholds: str = "",
+    limits: str = "",
+) -> dict:
+    checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
+    predictions_path = checkpoint_dir / predictions_name
+    output_path = checkpoint_dir / output_name
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
+    evaluator = data_root / "tools" / "evaluate_predictions.py"
+    require_path(predictions_path)
+    require_path(data_root / "annotations" / "val.json")
+    require_path(evaluator)
+
+    command = [
+        sys.executable,
+        str(REMOTE_SUBMISSION / "scripts" / "tune_predictions.py"),
+        "--predictions",
+        str(predictions_path),
+        "--ground_truth",
+        str(data_root / "annotations" / "val.json"),
+        "--evaluator",
+        str(evaluator),
+        "--output",
+        str(output_path),
+    ]
+    if thresholds:
+        command += ["--thresholds", thresholds]
+    if limits:
+        command += ["--limits", limits]
+    print("Running validation tuning command:")
+    print(" ".join(shlex.quote(part) for part in command))
+    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
+    volume.commit()
+    return {
+        "run_name": run_name,
+        "tuning_results": str(output_path),
+        "best": json.loads(output_path.read_text(encoding="utf-8")).get("best"),
+    }
+
+
 @app.function(volumes={str(VOLUME_MOUNT): volume}, timeout=2 * 60)
 def set_active_tensorboard_run_remote(run_name: str) -> str:
     checkpoints_dir = VOLUME_MOUNT / "checkpoints"
@@ -328,6 +380,10 @@ def main(
     remote_image_dir: str = "/data/indoor5-v2-student/public/val/images",
     checkpoint_name: str = "best.pth",
     output_name: str = "predictions.json",
+    predictions_name: str = "val_predictions_tta.json",
+    tune_output_name: str = "threshold_tuning.json",
+    tune_thresholds: str = "",
+    tune_limits: str = "",
     epochs: int = 0,
     batch_size: int = 0,
     val_interval: int = 0,
@@ -335,6 +391,7 @@ def main(
     pre_nms_topk: int = 0,
     amp: bool = False,
     no_pretrained_backbone: bool = False,
+    resume_model_only: bool = False,
 ) -> None:
     if action == "upload":
         upload_dataset(local_data_dir)
@@ -358,9 +415,22 @@ def main(
             pre_nms_topk=pre_nms_topk,
             amp=amp,
             no_pretrained_backbone=no_pretrained_backbone,
+            resume_model_only=resume_model_only,
         )
         print(json.dumps(result, indent=2))
         print_download_commands(run_name)
+        return
+    if action == "tune_val":
+        active_run = set_active_tensorboard_run_remote.remote(run_name)
+        print(f"Set TensorBoard active run to: {active_run}")
+        result = tune_val_remote.remote(
+            run_name=run_name,
+            predictions_name=predictions_name,
+            output_name=tune_output_name,
+            thresholds=tune_thresholds,
+            limits=tune_limits,
+        )
+        print(json.dumps(result, indent=2))
         return
     if action == "pack":
         active_run = set_active_tensorboard_run_remote.remote(run_name)
