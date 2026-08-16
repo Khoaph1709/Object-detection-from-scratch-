@@ -61,6 +61,7 @@ def train_remote(
     amp: bool = False,
     no_pretrained_backbone: bool = False,
     resume_model_only: bool = False,
+    resume_checkpoint_name: str = "",
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -102,6 +103,8 @@ def train_remote(
         command.append("--no_pretrained_backbone")
     if resume_model_only:
         command.append("--resume_model_only")
+    if resume_checkpoint_name:
+        command += ["--resume", str(checkpoint_dir / resume_checkpoint_name)]
 
     print("Running training command:")
     print(" ".join(shlex.quote(part) for part in command))
@@ -392,6 +395,7 @@ def main(
     amp: bool = False,
     no_pretrained_backbone: bool = False,
     resume_model_only: bool = False,
+    resume_checkpoint_name: str = "",
 ) -> None:
     if action == "upload":
         upload_dataset(local_data_dir)
@@ -416,6 +420,7 @@ def main(
             amp=amp,
             no_pretrained_backbone=no_pretrained_backbone,
             resume_model_only=resume_model_only,
+            resume_checkpoint_name=resume_checkpoint_name,
         )
         print(json.dumps(result, indent=2))
         print_download_commands(run_name)
