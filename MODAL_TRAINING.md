@@ -76,7 +76,7 @@ modal run my_submission/modal_app.py \
   --config-path /root/project/my_submission/configs/train_modal_small_objects_l40s.json
 ```
 
-This recipe uses the stride-4 P2 feature level, 800/1280 multi-scale training, AMP, 50 epochs, and a larger pre-NMS candidate pool. If the L40S runs out of memory, reduce `batch_size` from 8 to 4 before reducing image resolution; the P2 level is the main architectural improvement for small objects.
+This recipe uses the stride-4 P2 feature level, 800/1280 multi-scale training, AMP, 50 epochs, batch size 4, and a larger pre-NMS candidate pool. Batch size 4 is the safe default for the P2 high-resolution model on a 48 GB L40S. If the GPU still runs out of memory, reduce `batch_size` to 2 before reducing image resolution; keep the P2 level because it is the main architectural improvement for small objects.
 
 The training configuration files are:
 
