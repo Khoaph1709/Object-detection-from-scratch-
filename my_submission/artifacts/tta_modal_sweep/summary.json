@@ -1,0 +1,552 @@
+[
+  {
+    "mAP@0.5": 0.830334,
+    "threshold": 0.05,
+    "topk": 100,
+    "num_predictions": 133824,
+    "micro_precision": 0.014422,
+    "micro_recall": 0.954973,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.05_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.05_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830334,
+    "threshold": 0.08,
+    "topk": 100,
+    "num_predictions": 133824,
+    "micro_precision": 0.014422,
+    "micro_recall": 0.954973,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.08_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.08_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830334,
+    "threshold": 0.1,
+    "topk": 100,
+    "num_predictions": 133824,
+    "micro_precision": 0.014422,
+    "micro_recall": 0.954973,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.10_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.10_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830334,
+    "threshold": 0.12,
+    "topk": 100,
+    "num_predictions": 133824,
+    "micro_precision": 0.014422,
+    "micro_recall": 0.954973,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.12_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.12_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830288,
+    "threshold": 0.14,
+    "topk": 100,
+    "num_predictions": 117543,
+    "micro_precision": 0.016377,
+    "micro_recall": 0.952499,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.14_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.14_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830232,
+    "threshold": 0.05,
+    "topk": 70,
+    "num_predictions": 98387,
+    "micro_precision": 0.019494,
+    "micro_recall": 0.949035,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.05_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.05_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830232,
+    "threshold": 0.08,
+    "topk": 70,
+    "num_predictions": 98387,
+    "micro_precision": 0.019494,
+    "micro_recall": 0.949035,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.08_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.08_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830232,
+    "threshold": 0.1,
+    "topk": 70,
+    "num_predictions": 98387,
+    "micro_precision": 0.019494,
+    "micro_recall": 0.949035,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.10_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.10_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830232,
+    "threshold": 0.12,
+    "topk": 70,
+    "num_predictions": 98387,
+    "micro_precision": 0.019494,
+    "micro_recall": 0.949035,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.12_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.12_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830226,
+    "threshold": 0.14,
+    "topk": 70,
+    "num_predictions": 91524,
+    "micro_precision": 0.020945,
+    "micro_recall": 0.94854,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.14_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.14_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830201,
+    "threshold": 0.16,
+    "topk": 100,
+    "num_predictions": 96188,
+    "micro_precision": 0.019919,
+    "micro_recall": 0.948046,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.16_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.16_top100.json"
+  },
+  {
+    "mAP@0.5": 0.830182,
+    "threshold": 0.18,
+    "topk": 100,
+    "num_predictions": 75247,
+    "micro_precision": 0.025436,
+    "micro_recall": 0.947056,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.18_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.18_top100.json"
+  },
+  {
+    "mAP@0.5": 0.83016,
+    "threshold": 0.16,
+    "topk": 70,
+    "num_predictions": 81105,
+    "micro_precision": 0.023587,
+    "micro_recall": 0.946561,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.16_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.16_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830137,
+    "threshold": 0.18,
+    "topk": 70,
+    "num_predictions": 67783,
+    "micro_precision": 0.028193,
+    "micro_recall": 0.945571,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.18_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.18_top70.json"
+  },
+  {
+    "mAP@0.5": 0.830064,
+    "threshold": 0.05,
+    "topk": 50,
+    "num_predictions": 71804,
+    "micro_precision": 0.026558,
+    "micro_recall": 0.943592,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.05_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.05_top50.json"
+  },
+  {
+    "mAP@0.5": 0.830064,
+    "threshold": 0.08,
+    "topk": 50,
+    "num_predictions": 71804,
+    "micro_precision": 0.026558,
+    "micro_recall": 0.943592,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.08_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.08_top50.json"
+  },
+  {
+    "mAP@0.5": 0.830064,
+    "threshold": 0.1,
+    "topk": 50,
+    "num_predictions": 71804,
+    "micro_precision": 0.026558,
+    "micro_recall": 0.943592,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.10_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.10_top50.json"
+  },
+  {
+    "mAP@0.5": 0.830064,
+    "threshold": 0.12,
+    "topk": 50,
+    "num_predictions": 71804,
+    "micro_precision": 0.026558,
+    "micro_recall": 0.943592,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.12_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.12_top50.json"
+  },
+  {
+    "mAP@0.5": 0.830056,
+    "threshold": 0.14,
+    "topk": 50,
+    "num_predictions": 68763,
+    "micro_precision": 0.027718,
+    "micro_recall": 0.943097,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.14_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.14_top50.json"
+  },
+  {
+    "mAP@0.5": 0.829993,
+    "threshold": 0.2,
+    "topk": 100,
+    "num_predictions": 55810,
+    "micro_precision": 0.03408,
+    "micro_recall": 0.941118,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.20_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.20_top100.json"
+  },
+  {
+    "mAP@0.5": 0.829961,
+    "threshold": 0.16,
+    "topk": 50,
+    "num_predictions": 63830,
+    "micro_precision": 0.029798,
+    "micro_recall": 0.941118,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.16_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.16_top50.json"
+  },
+  {
+    "mAP@0.5": 0.829959,
+    "threshold": 0.2,
+    "topk": 70,
+    "num_predictions": 53518,
+    "micro_precision": 0.035521,
+    "micro_recall": 0.940623,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.20_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.20_top70.json"
+  },
+  {
+    "mAP@0.5": 0.82994,
+    "threshold": 0.18,
+    "topk": 50,
+    "num_predictions": 56897,
+    "micro_precision": 0.033411,
+    "micro_recall": 0.940623,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.18_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.18_top50.json"
+  },
+  {
+    "mAP@0.5": 0.829832,
+    "threshold": 0.2,
+    "topk": 50,
+    "num_predictions": 48260,
+    "micro_precision": 0.039287,
+    "micro_recall": 0.938149,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.20_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.20_top50.json"
+  },
+  {
+    "mAP@0.5": 0.8294,
+    "threshold": 0.05,
+    "topk": 30,
+    "num_predictions": 43917,
+    "micro_precision": 0.042945,
+    "micro_recall": 0.933201,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.05_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.05_top30.json"
+  },
+  {
+    "mAP@0.5": 0.8294,
+    "threshold": 0.08,
+    "topk": 30,
+    "num_predictions": 43917,
+    "micro_precision": 0.042945,
+    "micro_recall": 0.933201,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.08_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.08_top30.json"
+  },
+  {
+    "mAP@0.5": 0.8294,
+    "threshold": 0.1,
+    "topk": 30,
+    "num_predictions": 43917,
+    "micro_precision": 0.042945,
+    "micro_recall": 0.933201,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.10_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.10_top30.json"
+  },
+  {
+    "mAP@0.5": 0.8294,
+    "threshold": 0.12,
+    "topk": 30,
+    "num_predictions": 43917,
+    "micro_precision": 0.042945,
+    "micro_recall": 0.933201,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.12_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.12_top30.json"
+  },
+  {
+    "mAP@0.5": 0.8294,
+    "threshold": 0.14,
+    "topk": 30,
+    "num_predictions": 42874,
+    "micro_precision": 0.043989,
+    "micro_recall": 0.933201,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.14_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.14_top30.json"
+  },
+  {
+    "mAP@0.5": 0.829259,
+    "threshold": 0.16,
+    "topk": 30,
+    "num_predictions": 41250,
+    "micro_precision": 0.045673,
+    "micro_recall": 0.932212,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.16_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.16_top30.json"
+  },
+  {
+    "mAP@0.5": 0.829259,
+    "threshold": 0.18,
+    "topk": 30,
+    "num_predictions": 38618,
+    "micro_precision": 0.048786,
+    "micro_recall": 0.932212,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.18_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.18_top30.json"
+  },
+  {
+    "mAP@0.5": 0.829232,
+    "threshold": 0.2,
+    "topk": 30,
+    "num_predictions": 35266,
+    "micro_precision": 0.053366,
+    "micro_recall": 0.931222,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.20_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.20_top30.json"
+  },
+  {
+    "mAP@0.5": 0.828681,
+    "threshold": 0.25,
+    "topk": 70,
+    "num_predictions": 25813,
+    "micro_precision": 0.072212,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.25_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.25_top70.json"
+  },
+  {
+    "mAP@0.5": 0.82868,
+    "threshold": 0.25,
+    "topk": 100,
+    "num_predictions": 25918,
+    "micro_precision": 0.071919,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.25_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.25_top100.json"
+  },
+  {
+    "mAP@0.5": 0.828562,
+    "threshold": 0.05,
+    "topk": 20,
+    "num_predictions": 29578,
+    "micro_precision": 0.06302,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.05_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.05_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828562,
+    "threshold": 0.08,
+    "topk": 20,
+    "num_predictions": 29578,
+    "micro_precision": 0.06302,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.08_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.08_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828562,
+    "threshold": 0.1,
+    "topk": 20,
+    "num_predictions": 29578,
+    "micro_precision": 0.06302,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.10_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.10_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828562,
+    "threshold": 0.12,
+    "topk": 20,
+    "num_predictions": 29578,
+    "micro_precision": 0.06302,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.12_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.12_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828562,
+    "threshold": 0.14,
+    "topk": 20,
+    "num_predictions": 29037,
+    "micro_precision": 0.064194,
+    "micro_recall": 0.922316,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.14_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.14_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828521,
+    "threshold": 0.25,
+    "topk": 50,
+    "num_predictions": 25514,
+    "micro_precision": 0.07294,
+    "micro_recall": 0.920831,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.25_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.25_top50.json"
+  },
+  {
+    "mAP@0.5": 0.828465,
+    "threshold": 0.16,
+    "topk": 20,
+    "num_predictions": 28336,
+    "micro_precision": 0.065747,
+    "micro_recall": 0.921821,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.16_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.16_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828465,
+    "threshold": 0.18,
+    "topk": 20,
+    "num_predictions": 27172,
+    "micro_precision": 0.068563,
+    "micro_recall": 0.921821,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.18_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.18_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828447,
+    "threshold": 0.2,
+    "topk": 20,
+    "num_predictions": 25523,
+    "micro_precision": 0.072954,
+    "micro_recall": 0.921326,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.20_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.20_top20.json"
+  },
+  {
+    "mAP@0.5": 0.828188,
+    "threshold": 0.25,
+    "topk": 30,
+    "num_predictions": 23589,
+    "micro_precision": 0.078808,
+    "micro_recall": 0.919842,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.25_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.25_top30.json"
+  },
+  {
+    "mAP@0.5": 0.827774,
+    "threshold": 0.25,
+    "topk": 20,
+    "num_predictions": 19568,
+    "micro_precision": 0.094542,
+    "micro_recall": 0.915388,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.25_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.25_top20.json"
+  },
+  {
+    "mAP@0.5": 0.826096,
+    "threshold": 0.3,
+    "topk": 30,
+    "num_predictions": 12386,
+    "micro_precision": 0.147747,
+    "micro_recall": 0.905492,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.30_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.30_top30.json"
+  },
+  {
+    "mAP@0.5": 0.826087,
+    "threshold": 0.3,
+    "topk": 50,
+    "num_predictions": 12479,
+    "micro_precision": 0.146646,
+    "micro_recall": 0.905492,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.30_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.30_top50.json"
+  },
+  {
+    "mAP@0.5": 0.826087,
+    "threshold": 0.3,
+    "topk": 70,
+    "num_predictions": 12492,
+    "micro_precision": 0.146494,
+    "micro_recall": 0.905492,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.30_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.30_top70.json"
+  },
+  {
+    "mAP@0.5": 0.826087,
+    "threshold": 0.3,
+    "topk": 100,
+    "num_predictions": 12492,
+    "micro_precision": 0.146494,
+    "micro_recall": 0.905492,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.30_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.30_top100.json"
+  },
+  {
+    "mAP@0.5": 0.825993,
+    "threshold": 0.3,
+    "topk": 20,
+    "num_predictions": 11966,
+    "micro_precision": 0.152683,
+    "micro_recall": 0.904008,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.30_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.30_top20.json"
+  },
+  {
+    "mAP@0.5": 0.821845,
+    "threshold": 0.35,
+    "topk": 30,
+    "num_predictions": 6507,
+    "micro_precision": 0.276471,
+    "micro_recall": 0.890153,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.35_top30.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.35_top30.json"
+  },
+  {
+    "mAP@0.5": 0.821843,
+    "threshold": 0.35,
+    "topk": 50,
+    "num_predictions": 6515,
+    "micro_precision": 0.276132,
+    "micro_recall": 0.890153,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.35_top50.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.35_top50.json"
+  },
+  {
+    "mAP@0.5": 0.821843,
+    "threshold": 0.35,
+    "topk": 70,
+    "num_predictions": 6515,
+    "micro_precision": 0.276132,
+    "micro_recall": 0.890153,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.35_top70.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.35_top70.json"
+  },
+  {
+    "mAP@0.5": 0.821843,
+    "threshold": 0.35,
+    "topk": 100,
+    "num_predictions": 6515,
+    "micro_precision": 0.276132,
+    "micro_recall": 0.890153,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.35_top100.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.35_top100.json"
+  },
+  {
+    "mAP@0.5": 0.821736,
+    "threshold": 0.35,
+    "topk": 20,
+    "num_predictions": 6461,
+    "micro_precision": 0.27813,
+    "micro_recall": 0.889164,
+    "prediction_file": "my_submission/artifacts/tta_modal_sweep/pred_th0.35_top20.json",
+    "score_file": "my_submission/artifacts/tta_modal_sweep/score_th0.35_top20.json"
+  }
+]
