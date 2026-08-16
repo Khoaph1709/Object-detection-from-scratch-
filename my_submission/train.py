@@ -73,6 +73,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overfit_images", type=int, default=0)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--no_pretrained_backbone", action="store_true")
+    parser.add_argument("--backbone_name", choices=["convnext_tiny", "convnext_small"], default="convnext_tiny")
+    parser.add_argument("--fpn_type", choices=["fpn", "bifpn"], default="fpn")
+    parser.add_argument("--bifpn_layers", type=int, default=1)
     parser.add_argument("--resume", default="", help="Path to a checkpoint to resume from.")
     parser.add_argument(
         "--resume_model_only",
@@ -135,7 +138,13 @@ def main() -> None:
         collate_fn=detection_collate_fn,
     )
 
-    model = build_detector(num_classes=num_classes, pretrained_backbone=not args.no_pretrained_backbone).to(device)
+    model = build_detector(
+        num_classes=num_classes,
+        pretrained_backbone=not args.no_pretrained_backbone,
+        backbone_name=args.backbone_name,
+        fpn_type=args.fpn_type,
+        bifpn_layers=args.bifpn_layers,
+    ).to(device)
     assigner = FCOSTargetAssigner(model.strides, center_sampling_radius=args.center_sampling_radius)
     criterion = FCOSLoss(
         num_classes=num_classes,
@@ -166,6 +175,22 @@ def main() -> None:
             raise ValueError(
                 "Resume checkpoint class names do not match current dataset classes. "
                 f"checkpoint={checkpoint_classes}, dataset={train_dataset.classes}"
+            )
+        checkpoint_args = checkpoint.get("args", {}) or {}
+        checkpoint_architecture = checkpoint.get("architecture", {}) or {
+            "backbone_name": checkpoint_args.get("backbone_name", "convnext_tiny"),
+            "fpn_type": checkpoint_args.get("fpn_type", "fpn"),
+            "bifpn_layers": int(checkpoint_args.get("bifpn_layers", 1)),
+        }
+        expected_architecture = {
+            "backbone_name": args.backbone_name,
+            "fpn_type": args.fpn_type,
+            "bifpn_layers": args.bifpn_layers,
+        }
+        if checkpoint_architecture != expected_architecture:
+            raise ValueError(
+                "Resume checkpoint architecture does not match the current configuration. "
+                f"checkpoint={checkpoint_architecture}, current={expected_architecture}"
             )
         model.load_state_dict(checkpoint["model"])
         if not args.resume_model_only and "optimizer" in checkpoint:
@@ -620,6 +645,11 @@ def save_checkpoint(
             "best_map": best_map,
             "global_step": global_step,
             "args": vars(args),
+            "architecture": {
+                "backbone_name": args.backbone_name,
+                "fpn_type": args.fpn_type,
+                "bifpn_layers": args.bifpn_layers,
+            },
             "class_names": class_names,
         },
         path,

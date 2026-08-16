@@ -18,7 +18,7 @@ From the repository root, install the dependencies with:
 pip install -r my_submission/requirements.txt
 ```
 
-The model uses a ConvNeXt-Tiny feature extractor through `timm`, followed by a custom FPN and a custom FCOS head. The FPN produces `P2`–`P7`; the stride-4 `P2` branch is included specifically to preserve detail for small objects. If the course requires every parameter to be randomly initialized, pass `--no_pretrained_backbone`. Otherwise, the pretrained backbone is enabled by default to improve convergence and accuracy; the detector head, FPN, target assignment, loss, NMS, and inference pipeline remain custom.
+The stable baseline uses a ConvNeXt-Tiny feature extractor through `timm`, followed by a custom FPN and a custom FCOS head. This branch additionally supports the experimental `ConvNeXt-Small + BiFPN` configuration. Both pyramids produce `P2`–`P7`; the stride-4 `P2` branch is included specifically to preserve detail for small objects. BiFPN uses custom normalized learnable fusion weights and depthwise-separable convolutions. The ConvNeXt-Small experiment is intentionally separate because its higher capacity and bidirectional fusion require more VRAM and must be validated against the stable P2-FPN baseline. If the course requires every parameter to be randomly initialized, pass `--no_pretrained_backbone`. The assignment instructor has allowed pretrained backbones, so the default uses pretrained ConvNeXt weights to improve convergence and accuracy; the detector head, pyramid, target assignment, loss, NMS, and inference pipeline remain custom.
 
 ## Dataset Layout
 
@@ -50,11 +50,30 @@ python train.py \
   --checkpoint_dir ./models/
 ```
 
-Alternatively, run a high-resolution Modal configuration prepared for small objects:
+Alternatively, run the stable high-resolution Modal configuration prepared for small objects:
 
 ```bash
 cd my_submission
 python train.py --config configs/train_modal_small_objects_l40s.json
+```
+
+The experimental ConvNeXt-Small + BiFPN configuration is:
+
+```bash
+cd my_submission
+python train.py --config configs/train_modal_convnext_small_bifpn_l40s.json
+```
+
+For the Modal full-train wrapper, use a distinct run name for this experiment:
+
+```bash
+modal run my_submission/modal_app.py \
+  --action train \
+  --gpu L40S \
+  --run-name fcos_modal_convnext_small_bifpn_l40s \
+  --config-path /root/project/my_submission/configs/train_modal_convnext_small_bifpn_l40s.json \
+  --batch-size 2 \
+  --amp
 ```
 
 Training writes the best validation checkpoint to `./models/best.pth` and the latest checkpoint to `./models/last.pth`. It also writes `train_log.csv`, `val_history.jsonl`, validation predictions, and optional TensorBoard logs in the checkpoint directory. The validation metric is the evaluator supplied with the assignment and is reported as `mAP@0.5`.

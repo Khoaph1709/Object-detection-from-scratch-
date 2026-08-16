@@ -87,6 +87,20 @@ my_submission/configs/train_modal_l40s.json
 
 Edit the small-object config for persistent hyperparameter changes. CLI arguments override the config for quick experiments.
 
+Experimental ConvNeXt-Small + BiFPN run:
+
+```bash
+modal run my_submission/modal_app.py \
+  --action train \
+  --gpu L40S \
+  --run-name fcos_modal_convnext_small_bifpn_l40s \
+  --config-path /root/project/my_submission/configs/train_modal_convnext_small_bifpn_l40s.json \
+  --batch-size 2 \
+  --amp
+```
+
+This experiment uses one BiFPN layer, `short_size=704`, `max_size=1056`, and batch size 2. It is intentionally separate from the stable P2-FPN run. Compare validation mAP and per-class recall before choosing it for the final submission; do not resume it from a checkpoint created by the Tiny+FPN architecture.
+
 ## 4. Resume Training
 
 Training always passes `--auto_resume`, so rerun the same command:

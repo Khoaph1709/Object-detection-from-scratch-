@@ -78,7 +78,14 @@ def main() -> None:
     if class_names:
         set_active_classes(class_names)
     num_classes = len(class_names) if class_names else 5
-    model = build_detector(num_classes=num_classes, pretrained_backbone=False).to(device)
+    checkpoint_args = checkpoint.get("args", {}) or {}
+    model = build_detector(
+        num_classes=num_classes,
+        pretrained_backbone=False,
+        backbone_name=checkpoint_args.get("backbone_name", "convnext_tiny"),
+        fpn_type=checkpoint_args.get("fpn_type", "fpn"),
+        bifpn_layers=int(checkpoint_args.get("bifpn_layers", 1)),
+    ).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
 
