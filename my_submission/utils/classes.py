@@ -1,4 +1,4 @@
-DEFAULT_CLASSES = ["person", "car", "dog", "cat", "chair"]
+DEFAULT_CLASSES = ["bottle", "cup", "chair", "laptop", "backpack"]
 CLASSES = list(DEFAULT_CLASSES)
 CLASS_TO_IDX = {name: index for index, name in enumerate(CLASSES)}
 IDX_TO_CLASS = {index: name for name, index in CLASS_TO_IDX.items()}

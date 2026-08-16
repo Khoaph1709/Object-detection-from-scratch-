@@ -11,11 +11,11 @@ from .classes import IDX_TO_CLASS
 
 
 COLORS = {
-    "person": (220, 38, 38),
-    "car": (22, 163, 74),
-    "dog": (234, 179, 8),
-    "cat": (8, 145, 178),
-    "chair": (192, 38, 211),
+    "bottle": (220, 38, 38),
+    "cup": (22, 163, 74),
+    "chair": (234, 179, 8),
+    "laptop": (8, 145, 178),
+    "backpack": (192, 38, 211),
 }
 
 
