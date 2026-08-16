@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections import OrderedDict
 
 import torch
@@ -22,17 +20,19 @@ class ConvBlock(nn.Module):
 
 
 class FPN(nn.Module):
-    """Feature Pyramid Network producing P3-P7 from C3-C5."""
+    """Feature Pyramid Network producing P2-P7 from C2-C5."""
 
     def __init__(self, in_channels: list[int], out_channels: int = 256) -> None:
         super().__init__()
-        if len(in_channels) != 3:
-            raise ValueError("FPN expects exactly three input channel counts for C3, C4, C5.")
+        if len(in_channels) != 4:
+            raise ValueError("FPN expects exactly four input channel counts for C2, C3, C4, and C5.")
 
-        self.lateral_c3 = nn.Conv2d(in_channels[0], out_channels, kernel_size=1)
-        self.lateral_c4 = nn.Conv2d(in_channels[1], out_channels, kernel_size=1)
-        self.lateral_c5 = nn.Conv2d(in_channels[2], out_channels, kernel_size=1)
+        self.lateral_c2 = nn.Conv2d(in_channels[0], out_channels, kernel_size=1)
+        self.lateral_c3 = nn.Conv2d(in_channels[1], out_channels, kernel_size=1)
+        self.lateral_c4 = nn.Conv2d(in_channels[2], out_channels, kernel_size=1)
+        self.lateral_c5 = nn.Conv2d(in_channels[3], out_channels, kernel_size=1)
 
+        self.output_p2 = ConvBlock(out_channels, out_channels, kernel_size=3)
         self.output_p3 = ConvBlock(out_channels, out_channels, kernel_size=3)
         self.output_p4 = ConvBlock(out_channels, out_channels, kernel_size=3)
         self.output_p5 = ConvBlock(out_channels, out_channels, kernel_size=3)
@@ -43,12 +43,14 @@ class FPN(nn.Module):
         self.p7_downsample = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1)
 
     def forward(self, features: OrderedDict[str, torch.Tensor]) -> OrderedDict[str, torch.Tensor]:
-        c3, c4, c5 = features["c3"], features["c4"], features["c5"]
+        c2, c3, c4, c5 = features["c2"], features["c3"], features["c4"], features["c5"]
 
         p5 = self.lateral_c5(c5)
         p4 = self.lateral_c4(c4) + F.interpolate(p5, size=c4.shape[-2:], mode="nearest")
         p3 = self.lateral_c3(c3) + F.interpolate(p4, size=c3.shape[-2:], mode="nearest")
+        p2 = self.lateral_c2(c2) + F.interpolate(p3, size=c2.shape[-2:], mode="nearest")
 
+        p2 = self.output_p2(p2)
         p3 = self.output_p3(p3)
         p4 = self.output_p4(p4)
         p5 = self.output_p5(p5)
@@ -57,6 +59,7 @@ class FPN(nn.Module):
 
         return OrderedDict(
             {
+                "p2": p2,
                 "p3": p3,
                 "p4": p4,
                 "p5": p5,
@@ -86,4 +89,3 @@ def print_fpn_feature_shapes(image_size: int = 640, batch_size: int = 2) -> None
     print("FPN features:")
     for name, tensor in p_features.items():
         print(f"{name.upper()}: {tuple(tensor.shape)}")
-

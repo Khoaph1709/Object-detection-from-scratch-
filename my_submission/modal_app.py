@@ -14,10 +14,10 @@ VOLUME_NAME = "xla-fcos-volume"
 VOLUME_MOUNT = Path("/data")
 REMOTE_PROJECT = Path("/root/project")
 REMOTE_SUBMISSION = REMOTE_PROJECT / "my_submission"
-DEFAULT_RUN_NAME = "fcos_modal_l40s"
-DEFAULT_TENSORBOARD_RUN_NAME = "fcos_modal_l40s_max_gpu_stable"
+DEFAULT_RUN_NAME = "fcos_modal_small_objects_l40s"
+DEFAULT_TENSORBOARD_RUN_NAME = "fcos_modal_small_objects_l40s"
 TENSORBOARD_ACTIVE_RUN_FILE = VOLUME_MOUNT / "checkpoints" / ".tensorboard_active_run.txt"
-DEFAULT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "train_modal_l40s.json")
+DEFAULT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "train_modal_small_objects_l40s.json")
 DEFAULT_PREDICT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "predict_val.json")
 
 LOCAL_ROOT = Path(__file__).resolve().parents[1]

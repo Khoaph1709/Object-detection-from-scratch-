@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import torch
 from torch import nn
 
@@ -23,7 +21,7 @@ class FCOSDetector(nn.Module):
         self.backbone = ConvNeXtTinyBackbone(pretrained=pretrained_backbone)
         self.fpn = FPN(in_channels=self.backbone.out_channels, out_channels=fpn_channels)
         self.head = FCOSHead(in_channels=fpn_channels, num_classes=num_classes)
-        self.strides = {"p3": 8, "p4": 16, "p5": 32, "p6": 64, "p7": 128}
+        self.strides = {"p2": 4, "p3": 8, "p4": 16, "p5": 32, "p6": 64, "p7": 128}
 
     def forward(self, images: torch.Tensor) -> dict:
         c_features = self.backbone(images)
@@ -40,4 +38,3 @@ def build_detector(
     pretrained_backbone: bool = True,
 ) -> FCOSDetector:
     return FCOSDetector(num_classes=num_classes, pretrained_backbone=pretrained_backbone)
-

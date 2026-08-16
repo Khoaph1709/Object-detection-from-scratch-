@@ -6,7 +6,7 @@ from my_submission.models.fpn import print_fpn_feature_shapes
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Print ConvNeXt-Tiny C3-C5 and FPN P3-P7 shapes.")
+    parser = argparse.ArgumentParser(description="Print ConvNeXt-Tiny C2-C5 and FPN P2-P7 shapes.")
     parser.add_argument("--image_size", type=int, default=640)
     parser.add_argument("--batch_size", type=int, default=2)
     return parser.parse_args()

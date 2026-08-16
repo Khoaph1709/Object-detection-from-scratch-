@@ -1,175 +1,150 @@
-# Custom Object Detection Submission
+# Custom Object Detector for the Final Assignment
 
-This submission implements a custom object detector for the five-class final assignment:
+This submission implements a custom **anchor-free FCOS-style object detector** for the final assignment. The implementation uses PyTorch and basic neural-network layers; it does not use a complete detector such as YOLO, Detectron2, torchvision Faster R-CNN, or torchvision SSD.
 
-- `person`
-- `car`
-- `dog`
-- `cat`
-- `chair`
-
-The first checkpoint contains the project structure, dataset reader, resize and horizontal flip augmentation, visualization tools, ConvNeXt-Tiny feature extraction, and an FPN module that produces P3-P7 features.
-
-## Install
-
-```bash
-pip install -r requirements.txt
-```
-
-## Visualize Augmentations
-
-From the repository root:
-
-```bash
-PYTHONPATH=. python my_submission/scripts/visualize_augmented_samples.py \
-  --annotation indoor5-v2-student/public/annotations/train.json \
-  --image_root indoor5-v2-student/public/train/images \
-  --output my_submission/artifacts/augmented_samples/train_aug_grid.jpg \
-  --num_images 30
-```
-
-## Check Feature Shapes
-
-```bash
-PYTHONPATH=. python my_submission/scripts/check_feature_shapes.py \
-  --image_size 640 \
-  --batch_size 2
-```
-
-Expected ConvNeXt-Tiny feature names:
+The class order is taken from the final assignment PDF and is therefore the single source of truth:
 
 ```text
-C3
-C4
-C5
+bottle, cup, chair, laptop, backpack
 ```
 
-Expected FPN feature names:
+The detector predicts a bounding box, a class label, and a confidence score for every retained detection. It supports multiple objects per image and images with no detections.
+
+## Environment
+
+From the repository root, install the dependencies with:
+
+```bash
+pip install -r my_submission/requirements.txt
+```
+
+The model uses a ConvNeXt-Tiny feature extractor through `timm`, followed by a custom FPN and a custom FCOS head. The FPN produces `P2`–`P7`; the stride-4 `P2` branch is included specifically to preserve detail for small objects. If the course requires every parameter to be randomly initialized, pass `--no_pretrained_backbone`. Otherwise, the pretrained backbone is enabled by default to improve convergence and accuracy; the detector head, FPN, target assignment, loss, NMS, and inference pipeline remain custom.
+
+## Dataset Layout
+
+Place the supplied dataset at `public/` in the execution environment:
 
 ```text
-P3
-P4
-P5
-P6
-P7
+public/
+├── classes.json
+├── train/images/
+├── val/images/
+├── annotations/train.json
+├── annotations/val.json
+└── tools/evaluate_predictions.py
 ```
 
-## Visualize FCOS Positive Targets
+The annotation files must contain the five PDF classes and use pixel-coordinate boxes in the format `[xmin, ymin, xmax, ymax]`.
+
+## Training
+
+The required training command from the PDF is supported directly. Run it from inside `my_submission/`:
 
 ```bash
-PYTHONPATH=. python my_submission/scripts/visualize_positive_targets.py \
-  --annotation indoor5-v2-student/public/annotations/train.json \
-  --image_root indoor5-v2-student/public/train/images \
-  --output my_submission/artifacts/positive_targets/positive_targets.jpg \
-  --index 0
+cd my_submission
+python train.py \
+  --train_data ../public/annotations/train.json \
+  --val_data ../public/annotations/val.json \
+  --image_dir ../public/train/images \
+  --val_image_dir ../public/val/images \
+  --checkpoint_dir ./models/
 ```
 
-## Debug One-Epoch Mini Overfit
-
-This command verifies the detector, target assignment, loss, backward pass, checkpoint saving, validation prediction export, and public evaluator integration on a tiny subset:
+Alternatively, run a high-resolution Modal configuration prepared for small objects:
 
 ```bash
-PYTHONPATH=. python my_submission/train.py \
-  --train_data indoor5-v2-student/public/annotations/train.json \
-  --val_data indoor5-v2-student/public/annotations/val.json \
-  --image_dir indoor5-v2-student/public/train/images \
-  --val_image_dir indoor5-v2-student/public/val/images \
-  --checkpoint_dir my_submission/models/debug \
+cd my_submission
+python train.py --config configs/train_modal_small_objects_l40s.json
+```
+
+Training writes the best validation checkpoint to `./models/best.pth` and the latest checkpoint to `./models/last.pth`. It also writes `train_log.csv`, `val_history.jsonl`, validation predictions, and optional TensorBoard logs in the checkpoint directory. The validation metric is the evaluator supplied with the assignment and is reported as `mAP@0.5`.
+
+For a quick local smoke test, use a tiny subset and disable pretrained weights:
+
+```bash
+cd my_submission
+PYTHONPATH=.. python train.py \
+  --train_data ../public/annotations/train.json \
+  --val_data ../public/annotations/val.json \
+  --image_dir ../public/train/images \
+  --val_image_dir ../public/val/images \
+  --checkpoint_dir ./models/smoke \
   --epochs 1 \
-  --batch_size 2 \
+  --batch_size 1 \
   --num_workers 0 \
   --short_size 256 \
   --max_size 384 \
   --max_steps 2 \
-  --overfit_images 8 \
+  --overfit_images 4 \
   --no_pretrained_backbone \
-  --score_threshold 0.9
+  --no_tensorboard
 ```
 
-## Full Baseline Training
+## Inference
 
-Run this on a GPU machine:
+The mandatory inference interface is:
 
 ```bash
 cd my_submission
-python train.py --config configs/train_competitive_l40s.json
+python predict.py \
+  --image_dir /path/to/images \
+  --output predictions.json
 ```
 
-Edit the JSON config to change hyperparameters. CLI arguments still override config values, for example:
-
-```bash
-python train.py --config configs/train_competitive_l40s.json --epochs 5 --batch_size 4
-```
-
-The default training mode uses full precision for stability. Set `"amp": true` or add `--amp` only after a stable run has been confirmed and you want faster training on a CUDA GPU.
-
-## Modal Training
-
-For Modal GPU training with persistent checkpoints, resume, TensorBoard, and output download, see:
-
-```text
-../MODAL_TRAINING.md
-```
-
-The best checkpoint is saved to:
-
-```text
-models/best.pth
-```
-
-The latest checkpoint is saved after every epoch:
-
-```text
-models/last.pth
-```
-
-Training also writes lightweight monitoring logs inside `checkpoint_dir`:
-
-```text
-train_log.csv
-val_history.jsonl
-val_predictions.score.json
-tensorboard/
-```
-
-In Colab, monitor the TensorBoard dashboard with:
-
-```python
-%load_ext tensorboard
-%tensorboard --logdir /content/drive/MyDrive/XLA/checkpoints/baseline_fcos_stable/tensorboard
-```
-
-You can also monitor raw files with:
-
-```bash
-!tail -n 20 /content/drive/MyDrive/XLA/checkpoints/baseline_fcos_stable/train_log.csv
-!tail -n 5 /content/drive/MyDrive/XLA/checkpoints/baseline_fcos_stable/val_history.jsonl
-!cat /content/drive/MyDrive/XLA/checkpoints/baseline_fcos_stable/val_predictions.score.json
-```
-
-If training is interrupted, run the same command with:
-
-```bash
---auto_resume
-```
-
-or explicitly resume from a checkpoint:
-
-```bash
---resume ./models/last.pth
-```
-
-## Prediction
-
-From inside `my_submission/`:
+If `./models/best.pth` is not present, `predict.py` attempts to download it when a checkpoint URL is supplied:
 
 ```bash
 python predict.py \
-  --config configs/predict_val.json \
   --image_dir /path/to/images \
   --output predictions.json \
-  --checkpoint_url https://your-storage.example.com/best.pth \
+  --checkpoint_url https://your-public-storage.example/best.pth \
   --checkpoint_sha256 <optional_sha256>
 ```
 
-Do not commit `.pth` files to GitHub. Keep `checkpoint` as a local target path (for example `models/best.pth`) and provide `checkpoint_url` so the script downloads weights automatically when the local file is missing.
+The URL is intentionally provided by the model owner rather than hard-coded into the submission. The script downloads the checkpoint into `models/downloads/`, optionally verifies the SHA-256 digest, loads it, and uses the saved `class_names` metadata. Do not commit `best.pth`, `last.pth`, or any other model weights to the submission archive.
+
+Horizontal-flip test-time augmentation can be enabled when it improves validation performance:
+
+```bash
+python predict.py \
+  --image_dir /path/to/images \
+  --output predictions.json \
+  --tta_flip \
+  --tta_merge_strategy nms
+```
+
+The output is a JSON array. Every input image appears exactly once, including images whose `boxes` list is empty. Each box uses the required format:
+
+```json
+[
+  {
+    "image_id": "img_7fd91a4c2e30.jpg",
+    "boxes": [
+      {
+        "class": "chair",
+        "confidence": 0.91,
+        "bbox": [48.0, 72.0, 210.0, 356.0]
+      }
+    ]
+  }
+]
+```
+
+Coordinates are clipped and converted back to the original image size. NMS is applied independently for each class.
+
+## Evaluation
+
+Evaluate validation predictions with the official evaluator supplied in `public/tools/`:
+
+```bash
+python ../public/tools/evaluate_predictions.py \
+  --ground_truth ../public/annotations/val.json \
+  --predictions predictions.json \
+  --output val_score.json
+```
+
+The evaluator checks the JSON schema, valid classes, box coordinates, IoU, precision, recall, and `mAP@0.5`. The hidden test set is evaluated by the course system and is not included in the repository.
+
+## Submission Checklist
+
+Submit the `my_submission/` directory without model weights. It contains `models/`, `utils/`, `train.py`, `predict.py`, `README.md`, and `requirements.txt`. The public dataset is supplied separately by the course environment. Before creating the archive, remove all `.pth` files and verify that the required train and predict commands work with the public dataset paths.

@@ -6,7 +6,9 @@ import torch
 
 
 REGRESSION_RANGES = {
-    "p3": (0, 64),
+    # The stride-4 level is essential for the small objects in the assignment.
+    "p2": (0, 32),
+    "p3": (32, 64),
     "p4": (64, 128),
     "p5": (128, 256),
     "p6": (256, 512),

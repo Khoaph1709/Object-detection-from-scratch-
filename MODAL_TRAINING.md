@@ -52,7 +52,7 @@ Check the selected GPU spec:
 modal run my_submission/modal_app.py --action gpu_status --gpu L40S
 ```
 
-Recommended first real run:
+Smoke or baseline run:
 
 ```bash
 modal run my_submission/modal_app.py \
@@ -66,23 +66,26 @@ modal run my_submission/modal_app.py \
   --pre-nms-topk 1000
 ```
 
-High-throughput full retraining config (L40S):
+Recommended small-object full retraining config (L40S):
 
 ```bash
 modal run my_submission/modal_app.py \
   --action train \
   --gpu L40S \
-  --run-name fcos_modal_l40s_max_gpu \
-  --config-path /root/project/my_submission/configs/train_modal_l40s_max_gpu.json
+  --run-name fcos_modal_small_objects_l40s \
+  --config-path /root/project/my_submission/configs/train_modal_small_objects_l40s.json
 ```
 
-The training config is:
+This recipe uses the stride-4 P2 feature level, 800/1280 multi-scale training, AMP, 50 epochs, and a larger pre-NMS candidate pool. If the L40S runs out of memory, reduce `batch_size` from 8 to 4 before reducing image resolution; the P2 level is the main architectural improvement for small objects.
+
+The training configuration files are:
 
 ```text
+my_submission/configs/train_modal_small_objects_l40s.json
 my_submission/configs/train_modal_l40s.json
 ```
 
-Edit that file for persistent hyperparameter changes. CLI arguments override the config for quick experiments.
+Edit the small-object config for persistent hyperparameter changes. CLI arguments override the config for quick experiments.
 
 ## 4. Resume Training
 

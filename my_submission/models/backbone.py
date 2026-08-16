@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections import OrderedDict
 
 import torch
@@ -7,7 +5,7 @@ from torch import nn
 
 
 class ConvNeXtTinyBackbone(nn.Module):
-    """ConvNeXt-Tiny feature extractor returning C3, C4, and C5."""
+    """ConvNeXt-Tiny feature extractor returning C2-C5 features."""
 
     def __init__(self, pretrained: bool = True) -> None:
         super().__init__()
@@ -20,7 +18,7 @@ class ConvNeXtTinyBackbone(nn.Module):
             "convnext_tiny",
             pretrained=pretrained,
             features_only=True,
-            out_indices=(1, 2, 3),
+            out_indices=(0, 1, 2, 3),
         )
         self.out_channels = list(self.body.feature_info.channels())
         self.out_strides = list(self.body.feature_info.reduction())
@@ -29,9 +27,10 @@ class ConvNeXtTinyBackbone(nn.Module):
         features = self.body(x)
         return OrderedDict(
             {
-                "c3": features[0],
-                "c4": features[1],
-                "c5": features[2],
+                "c2": features[0],
+                "c3": features[1],
+                "c4": features[2],
+                "c5": features[3],
             }
         )
 
@@ -48,4 +47,3 @@ def print_convnext_tiny_feature_shapes(
         features = model(x)
     for name, tensor in features.items():
         print(f"{name.upper()}: {tuple(tensor.shape)}")
-

@@ -40,7 +40,7 @@ class FCOSLoss:
         centerness_weight: float = 1.0,
         focal_alpha: float = 0.25,
         focal_gamma: float = 2.0,
-        chair_class_index: int = 4,
+        chair_class_index: int = 2,
         chair_positive_weight: float = 1.0,
         chair_negative_weight: float = 1.0,
     ) -> None:
@@ -49,6 +49,8 @@ class FCOSLoss:
         self.centerness_weight = centerness_weight
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
+        # PDF class order is bottle, cup, chair, laptop, backpack; keep this
+        # argument only for backward-compatible configs that explicitly tune chair.
         self.chair_class_index = chair_class_index
         self.chair_positive_weight = chair_positive_weight
         self.chair_negative_weight = chair_negative_weight

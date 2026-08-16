@@ -141,6 +141,7 @@ def main() -> None:
         num_classes=num_classes,
         focal_alpha=args.focal_alpha,
         focal_gamma=args.focal_gamma,
+        chair_class_index=train_dataset.classes.index("chair") if "chair" in train_dataset.classes else -1,
         chair_positive_weight=args.chair_positive_weight,
         chair_negative_weight=args.chair_negative_weight,
     )
@@ -417,8 +418,6 @@ def build_train_sampler(dataset, args: argparse.Namespace):
             weight = args.empty_image_weight
         elif "chair" in labels:
             weight = args.chair_positive_image_weight
-        elif "person" in labels:
-            weight = args.chair_confuser_weight
         else:
             weight = 1.0
         weights.append(max(float(weight), 1e-6))
@@ -429,7 +428,6 @@ def build_train_sampler(dataset, args: argparse.Namespace):
         print(
             "Using hard-negative sampler: "
             f"empty={args.empty_image_weight}, "
-            f"person_no_chair={args.chair_confuser_weight}, "
             f"chair_positive={args.chair_positive_image_weight}"
         )
     return WeightedRandomSampler(
