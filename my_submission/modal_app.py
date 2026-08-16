@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -101,7 +102,9 @@ def train_remote(
 
     print("Running training command:")
     print(" ".join(shlex.quote(part) for part in command))
-    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
+    env = os.environ.copy()
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True, env=env)
     volume.commit()
     return summarize_run(checkpoint_dir)
 

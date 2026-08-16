@@ -5,7 +5,7 @@
   "val_image_dir": "/data/indoor5-v2-student/public/val/images",
   "checkpoint_dir": "/data/checkpoints/fcos_modal_small_objects_l40s",
   "epochs": 50,
-  "batch_size": 8,
+  "batch_size": 4,
   "num_workers": 8,
   "short_size": 800,
   "max_size": 1280,
