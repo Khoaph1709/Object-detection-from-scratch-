@@ -21,3 +21,4 @@ my_submission/models/baseline_fcos_smoke_2ep/
 my_submission/artifacts/debug_*
 my_submission/artifacts/augmented_samples/train_aug_grid_venv.jpg
 modal_outputs/
+indoor5-v2-student/
