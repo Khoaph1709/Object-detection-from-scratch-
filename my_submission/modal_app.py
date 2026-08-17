@@ -65,7 +65,7 @@ def train_remote(
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    data_root = VOLUME_MOUNT / "indoor5-v2-student"
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
     require_path(data_root / "annotations" / "train.json")
     require_path(data_root / "annotations" / "val.json")
 
@@ -161,7 +161,7 @@ def predict_val_remote(
     checkpoint_path = checkpoint_dir / checkpoint_name
     output_path = checkpoint_dir / output_name
     score_path = output_path.with_suffix(".score.json")
-    data_root = VOLUME_MOUNT / "indoor5-v2-student"
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
     require_path(checkpoint_path)
     require_path(data_root / "annotations" / "val.json")
     require_path(data_root / "val" / "images")
@@ -216,7 +216,7 @@ def predict_val_remote(
 def predict_remote(
     run_name: str = DEFAULT_RUN_NAME,
     config_path: str = DEFAULT_PREDICT_CONFIG,
-    image_dir: str = "/data/indoor5-v2-student/val/images",
+    image_dir: str = "/data/indoor5-v2-student/public/val/images",
     checkpoint_name: str = "best.pth",
     output_name: str = "predictions.json",
 ) -> dict:
@@ -265,7 +265,7 @@ def mine_hard_examples_remote(
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     predictions_path = checkpoint_dir / predictions_name
     output_path = checkpoint_dir / output_name
-    data_root = VOLUME_MOUNT / "indoor5-v2-student"
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
     require_path(predictions_path)
     require_path(data_root / "annotations" / "train.json")
 
@@ -303,7 +303,7 @@ def tune_val_remote(
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     predictions_path = checkpoint_dir / predictions_name
     output_path = checkpoint_dir / output_name
-    data_root = VOLUME_MOUNT / "indoor5-v2-student"
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
     evaluator = data_root / "tools" / "evaluate_predictions.py"
     require_path(predictions_path)
     require_path(data_root / "annotations" / "val.json")
@@ -380,7 +380,7 @@ def main(
     local_data_dir: str = "indoor5-v2-student",
     local_checkpoint_dir: str = "my_submission/models/baseline_fcos_smoke_2ep",
     local_image_dir: str = "",
-    remote_image_dir: str = "/data/indoor5-v2-student/val/images",
+    remote_image_dir: str = "/data/indoor5-v2-student/public/val/images",
     checkpoint_name: str = "best.pth",
     output_name: str = "predictions.json",
     predictions_name: str = "val_predictions_tta.json",
@@ -490,25 +490,28 @@ def main(
 
 def upload_dataset(local_data_dir: str) -> None:
     local_path = Path(local_data_dir).resolve()
-    if not local_path.is_dir():
-        raise FileNotFoundError(f"Dataset folder not found: {local_path}")
+    public_path = local_path / "public"
+    if not public_path.is_dir():
+        raise FileNotFoundError(
+            f"Expected dataset directory not found: {public_path}. "
+            "Pass the folder containing public/ as --local-data-dir."
+        )
     required = [
-        local_path / "annotations" / "train.json",
-        local_path / "annotations" / "val.json",
-        local_path / "train" / "images",
-        local_path / "val" / "images",
+        public_path / "annotations" / "train.json",
+        public_path / "annotations" / "val.json",
+        public_path / "train" / "images",
+        public_path / "val" / "images",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         raise FileNotFoundError("Dataset is missing required paths:\n" + "\n".join(missing))
-    print(f"Uploading dataset root {local_path} to Modal volume {VOLUME_NAME}:/")
+    print(f"Uploading local {public_path} to Modal volume {VOLUME_NAME}:/indoor5-v2-student")
     with volume.batch_upload() as batch:
-        # put_directory preserves the local directory basename. Uploading the
-        # dataset root to / therefore creates /indoor5-v2-student/..., matching
-        # the local structure without an extra nested directory.
-        batch.put_directory(str(local_path), "/")
+        # put_directory preserves the local directory basename. Uploading
+        # local public/ to its parent creates /indoor5-v2-student/public/.
+        batch.put_directory(str(public_path), "/indoor5-v2-student")
     print("Upload complete.")
-    print(f"Check with: modal volume ls {VOLUME_NAME} /{local_path.name}/annotations")
+    print(f"Check with: modal volume ls {VOLUME_NAME} /indoor5-v2-student/public/annotations")
 
 
 def upload_checkpoint(local_checkpoint_dir: str, run_name: str) -> None:
