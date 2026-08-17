@@ -490,11 +490,20 @@ def main(
 
 def upload_dataset(local_data_dir: str) -> None:
     local_path = Path(local_data_dir)
+    public_path = local_path / "public"
     if not local_path.exists():
         raise FileNotFoundError(f"Dataset folder not found: {local_path}")
-    print(f"Uploading {local_path} to Modal volume {VOLUME_NAME}:/indoor5-v2-student")
+    if not public_path.is_dir():
+        raise FileNotFoundError(
+            f"Expected public dataset directory not found: {public_path}. "
+            "Pass the folder containing public/ as --local-data-dir."
+        )
+    print(f"Uploading {public_path} contents to Modal volume {VOLUME_NAME}:/indoor5-v2-student")
     with volume.batch_upload() as batch:
-        batch.put_directory(str(local_path), "/indoor5-v2-student")
+        # Modal put_directory preserves the local directory basename. Uploading
+        # local `public/` to the parent path avoids an extra nested
+        # `indoor5-v2-student/indoor5-v2-student/` directory.
+        batch.put_directory(str(public_path), "/indoor5-v2-student")
     print("Upload complete.")
     print(f"Check with: modal volume ls {VOLUME_NAME} /indoor5-v2-student/public/annotations")
 
