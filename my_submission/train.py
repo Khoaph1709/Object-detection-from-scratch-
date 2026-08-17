@@ -36,6 +36,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_image_dir", default="")
     parser.add_argument("--checkpoint_dir", default="")
     parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--scheduler_epochs", type=int, default=0, help="Epoch horizon used for cosine LR; 0 uses --epochs.")
+    parser.add_argument("--early_stopping_patience", type=int, default=0, help="Validation intervals without improvement before stopping; 0 disables.")
+    parser.add_argument("--early_stopping_min_delta", type=float, default=0.0, help="Minimum mAP improvement counted as progress.")
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--lr", type=float, default=5e-5)
@@ -93,7 +97,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     require_args(args, ["train_data", "val_data", "image_dir", "val_image_dir", "checkpoint_dir"])
-    torch.manual_seed(42)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     checkpoint_dir = Path(args.checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -155,7 +161,8 @@ def main() -> None:
         chair_negative_weight=args.chair_negative_weight,
     )
     optimizer = build_optimizer(model, args)
-    total_steps = args.max_steps if args.max_steps > 0 else args.epochs * len(train_loader)
+    scheduler_horizon = args.scheduler_epochs if args.scheduler_epochs > 0 else args.epochs
+    total_steps = args.max_steps if args.max_steps > 0 else scheduler_horizon * len(train_loader)
     scheduler = build_scheduler(optimizer, args, total_steps)
     amp_enabled = device.type == "cuda" and args.amp and not args.no_amp
     scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
@@ -165,6 +172,7 @@ def main() -> None:
     tb_writer = create_tensorboard_writer(checkpoint_dir, disabled=args.no_tensorboard)
 
     best_map = -1.0
+    epochs_without_improvement = 0
     global_step = 0
     start_epoch = 1
     resume_path = resolve_resume_path(args, checkpoint_dir)
@@ -349,8 +357,10 @@ def main() -> None:
             print(f"Logged validation history to {val_history_path}")
             if tb_writer is not None:
                 print(f"Logged TensorBoard events to {checkpoint_dir / 'tensorboard'}")
-            if current_map > best_map:
+            improved = current_map > best_map + args.early_stopping_min_delta
+            if improved:
                 best_map = current_map
+                epochs_without_improvement = 0
                 save_checkpoint(
                     checkpoint_dir / "best.pth",
                     model,
@@ -364,6 +374,12 @@ def main() -> None:
                     class_names=train_dataset.classes,
                 )
                 print(f"Saved new best checkpoint with mAP@0.5={best_map:.6f}")
+            else:
+                epochs_without_improvement += 1
+                print(
+                    f"No validation improvement for {epochs_without_improvement} "
+                    f"validation interval(s); best mAP@0.5={best_map:.6f}"
+                )
             save_checkpoint(
                 checkpoint_dir / "last.pth",
                 model,
@@ -376,6 +392,15 @@ def main() -> None:
                 args,
                 class_names=train_dataset.classes,
             )
+            if (
+                args.early_stopping_patience > 0
+                and epochs_without_improvement >= args.early_stopping_patience
+            ):
+                print(
+                    f"Early stopping at epoch {epoch}: "
+                    f"no mAP improvement for {epochs_without_improvement} validation intervals."
+                )
+                break
 
         if args.max_steps and global_step >= args.max_steps:
             break
