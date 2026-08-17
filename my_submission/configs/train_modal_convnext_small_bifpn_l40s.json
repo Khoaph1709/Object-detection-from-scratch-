@@ -1,8 +1,8 @@
 {
-  "train_data": "/data/indoor5-v2-student/public/annotations/train.json",
-  "val_data": "/data/indoor5-v2-student/public/annotations/val.json",
-  "image_dir": "/data/indoor5-v2-student/public/train/images",
-  "val_image_dir": "/data/indoor5-v2-student/public/val/images",
+  "train_data": "/data/indoor5-v2-student/annotations/train.json",
+  "val_data": "/data/indoor5-v2-student/annotations/val.json",
+  "image_dir": "/data/indoor5-v2-student/train/images",
+  "val_image_dir": "/data/indoor5-v2-student/val/images",
   "checkpoint_dir": "/data/checkpoints/fcos_modal_convnext_small_bifpn_l40s",
   "epochs": 50,
   "batch_size": 2,
