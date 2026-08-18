@@ -58,6 +58,7 @@ def decode_detections(
     pre_nms_topk: int = 1000,
     score_cls_power: float = 0.5,
     score_centerness_power: float = 0.5,
+    class_score_thresholds: dict[str, float] | None = None,
 ) -> list[list[dict]]:
     features = outputs["features"]
     locations_by_level = generate_locations(features, strides)
@@ -74,6 +75,7 @@ def decode_detections(
         score_centerness_power
     )
 
+    class_score_thresholds = class_score_thresholds or {}
     results = []
     for batch_index, image_size in enumerate(image_sizes):
         boxes = distance_to_boxes(locations, distances[batch_index])
@@ -82,7 +84,9 @@ def decode_detections(
         image_results = []
         for class_index in range(scores.shape[-1]):
             class_scores_i = scores[batch_index, :, class_index]
-            keep = class_scores_i >= score_threshold
+            class_name = IDX_TO_CLASS[int(class_index)]
+            class_threshold = float(class_score_thresholds.get(class_name, score_threshold))
+            keep = class_scores_i >= class_threshold
             if keep.sum() == 0:
                 continue
 

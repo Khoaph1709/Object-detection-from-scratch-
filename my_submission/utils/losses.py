@@ -43,6 +43,9 @@ class FCOSLoss:
         chair_class_index: int = 2,
         chair_positive_weight: float = 1.0,
         chair_negative_weight: float = 1.0,
+        backpack_class_index: int = 4,
+        backpack_positive_weight: float = 1.0,
+        backpack_negative_weight: float = 1.0,
     ) -> None:
         self.num_classes = num_classes
         self.box_weight = box_weight
@@ -54,6 +57,9 @@ class FCOSLoss:
         self.chair_class_index = chair_class_index
         self.chair_positive_weight = chair_positive_weight
         self.chair_negative_weight = chair_negative_weight
+        self.backpack_class_index = backpack_class_index
+        self.backpack_positive_weight = backpack_positive_weight
+        self.backpack_negative_weight = backpack_negative_weight
 
     def __call__(self, outputs: dict, targets: dict, strides: dict[str, int]) -> dict[str, torch.Tensor]:
         cls_logits = flatten_level_values(outputs["cls_logits"]).float()
@@ -81,17 +87,33 @@ class FCOSLoss:
             gamma=self.focal_gamma,
             reduction="none",
         )
-        if (
-            0 <= self.chair_class_index < self.num_classes
-            and (self.chair_positive_weight != 1.0 or self.chair_negative_weight != 1.0)
+        class_weight_specs = [
+            (
+                self.chair_class_index,
+                self.chair_positive_weight,
+                self.chair_negative_weight,
+            ),
+            (
+                self.backpack_class_index,
+                self.backpack_positive_weight,
+                self.backpack_negative_weight,
+            ),
+        ]
+        if any(
+            0 <= class_index < self.num_classes
+            and (positive_weight != 1.0 or negative_weight != 1.0)
+            for class_index, positive_weight, negative_weight in class_weight_specs
         ):
             class_weights = torch.ones_like(loss_cls_raw)
-            chair_targets = cls_targets[valid, self.chair_class_index]
-            class_weights[:, self.chair_class_index] = torch.where(
-                chair_targets > 0,
-                torch.full_like(chair_targets, self.chair_positive_weight),
-                torch.full_like(chair_targets, self.chair_negative_weight),
-            )
+            for class_index, positive_weight, negative_weight in class_weight_specs:
+                if not (0 <= class_index < self.num_classes):
+                    continue
+                targets_for_class = cls_targets[valid, class_index]
+                class_weights[:, class_index] = torch.where(
+                    targets_for_class > 0,
+                    torch.full_like(targets_for_class, positive_weight),
+                    torch.full_like(targets_for_class, negative_weight),
+                )
             loss_cls_raw = loss_cls_raw * class_weights
         loss_cls = loss_cls_raw.sum() / num_positive
 

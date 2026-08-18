@@ -62,6 +62,7 @@ def train_remote(
     no_pretrained_backbone: bool = False,
     resume_model_only: bool = False,
     resume_checkpoint_name: str = "",
+    resume_checkpoint_path: str = "",
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -103,7 +104,9 @@ def train_remote(
         command.append("--no_pretrained_backbone")
     if resume_model_only:
         command.append("--resume_model_only")
-    if resume_checkpoint_name:
+    if resume_checkpoint_path:
+        command += ["--resume", resume_checkpoint_path]
+    elif resume_checkpoint_name:
         command += ["--resume", str(checkpoint_dir / resume_checkpoint_name)]
 
     print("Running training command:")
@@ -260,7 +263,10 @@ def predict_remote(
 def mine_hard_examples_remote(
     run_name: str = DEFAULT_RUN_NAME,
     predictions_name: str = "train_predictions_consensus.json",
-    output_name: str = "chair_hard_example_weights.json",
+    output_name: str = "combined_hard_example_weights.json",
+    classes: str = "chair,backpack",
+    class_score_thresholds: str = "chair=0.20,backpack=0.20",
+    topk: int = 0,
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     predictions_path = checkpoint_dir / predictions_name
@@ -271,7 +277,13 @@ def mine_hard_examples_remote(
 
     command = [
         sys.executable,
-        str(REMOTE_SUBMISSION / "scripts" / "mine_chair_hard_examples.py"),
+        str(REMOTE_SUBMISSION / "scripts" / "mine_hard_examples.py"),
+        "--classes",
+        classes,
+        "--class_score_thresholds",
+        class_score_thresholds,
+        "--topk",
+        str(topk),
         "--ground_truth",
         str(data_root / "annotations" / "train.json"),
         "--predictions",
@@ -299,6 +311,8 @@ def tune_val_remote(
     output_name: str = "threshold_tuning.json",
     thresholds: str = "",
     limits: str = "",
+    class_thresholds: str = "",
+    class_limits: str = "",
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     predictions_path = checkpoint_dir / predictions_name
@@ -325,6 +339,10 @@ def tune_val_remote(
         command += ["--thresholds", thresholds]
     if limits:
         command += ["--limits", limits]
+    if class_thresholds:
+        command += ["--class_thresholds", class_thresholds]
+    if class_limits:
+        command += ["--class_limits", class_limits]
     print("Running validation tuning command:")
     print(" ".join(shlex.quote(part) for part in command))
     subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
@@ -387,6 +405,12 @@ def main(
     tune_output_name: str = "threshold_tuning.json",
     tune_thresholds: str = "",
     tune_limits: str = "",
+    tune_class_thresholds: str = "",
+    tune_class_limits: str = "",
+    mining_classes: str = "chair,backpack",
+    mining_class_score_thresholds: str = "chair=0.20,backpack=0.20",
+    mining_topk: int = 0,
+    mining_output_name: str = "combined_hard_example_weights.json",
     epochs: int = 0,
     batch_size: int = 0,
     val_interval: int = 0,
@@ -396,6 +420,7 @@ def main(
     no_pretrained_backbone: bool = False,
     resume_model_only: bool = False,
     resume_checkpoint_name: str = "",
+    resume_checkpoint_path: str = "",
 ) -> None:
     if action == "upload":
         upload_dataset(local_data_dir)
@@ -421,6 +446,7 @@ def main(
             no_pretrained_backbone=no_pretrained_backbone,
             resume_model_only=resume_model_only,
             resume_checkpoint_name=resume_checkpoint_name,
+            resume_checkpoint_path=resume_checkpoint_path,
         )
         print(json.dumps(result, indent=2))
         print_download_commands(run_name)
@@ -434,6 +460,8 @@ def main(
             output_name=tune_output_name,
             thresholds=tune_thresholds,
             limits=tune_limits,
+            class_thresholds=tune_class_thresholds,
+            class_limits=tune_class_limits,
         )
         print(json.dumps(result, indent=2))
         return
@@ -477,7 +505,11 @@ def main(
         print(f"Set TensorBoard active run to: {active_run}")
         result = mine_hard_examples_remote.remote(
             run_name=run_name,
-            predictions_name=output_name,
+            predictions_name=predictions_name,
+            output_name=mining_output_name,
+            classes=mining_classes,
+            class_score_thresholds=mining_class_score_thresholds,
+            topk=mining_topk,
         )
         print(json.dumps(result, indent=2))
         return

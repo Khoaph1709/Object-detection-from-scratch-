@@ -61,10 +61,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--focal_gamma", type=float, default=2.0)
     parser.add_argument("--chair_positive_weight", type=float, default=1.0)
     parser.add_argument("--chair_negative_weight", type=float, default=1.0)
+    parser.add_argument("--backpack_positive_weight", type=float, default=1.0)
+    parser.add_argument("--backpack_negative_weight", type=float, default=1.0)
     parser.add_argument("--hard_negative_sampling", action="store_true")
     parser.add_argument("--empty_image_weight", type=float, default=1.0)
     parser.add_argument("--chair_confuser_weight", type=float, default=1.0)
     parser.add_argument("--chair_positive_image_weight", type=float, default=1.0)
+    parser.add_argument("--backpack_positive_image_weight", type=float, default=1.0)
     parser.add_argument("--mined_sampler_weights", default="")
     parser.add_argument("--freeze_backbone_epochs", type=int, default=0)
     parser.add_argument("--val_interval", type=int, default=1)
@@ -159,6 +162,9 @@ def main() -> None:
         chair_class_index=train_dataset.classes.index("chair") if "chair" in train_dataset.classes else -1,
         chair_positive_weight=args.chair_positive_weight,
         chair_negative_weight=args.chair_negative_weight,
+        backpack_class_index=train_dataset.classes.index("backpack") if "backpack" in train_dataset.classes else -1,
+        backpack_positive_weight=args.backpack_positive_weight,
+        backpack_negative_weight=args.backpack_negative_weight,
     )
     optimizer = build_optimizer(model, args)
     scheduler_horizon = args.scheduler_epochs if args.scheduler_epochs > 0 else args.epochs
@@ -458,18 +464,21 @@ def build_train_sampler(dataset, args: argparse.Namespace):
     weights = []
     for source_index in source_indices:
         image_info = base_dataset.images[source_index]
-        if image_info["id"] in mined_weights:
-            weights.append(mined_weights[image_info["id"]])
+        image_id = str(image_info["id"])
+        if image_id in mined_weights:
+            weights.append(mined_weights[image_id])
             continue
 
         annotations = base_dataset.annotations_by_image.get(image_info["id"], [])
         labels = {annotation["class"] for annotation in annotations}
         if not annotations:
             weight = args.empty_image_weight
-        elif "chair" in labels:
-            weight = args.chair_positive_image_weight
         else:
-            weight = 1.0
+            class_positive_weights = [
+                args.chair_positive_image_weight if "chair" in labels else 1.0,
+                args.backpack_positive_image_weight if "backpack" in labels else 1.0,
+            ]
+            weight = max(class_positive_weights)
         weights.append(max(float(weight), 1e-6))
 
     if mined_weights:
@@ -478,8 +487,10 @@ def build_train_sampler(dataset, args: argparse.Namespace):
         print(
             "Using hard-negative sampler: "
             f"empty={args.empty_image_weight}, "
-            f"chair_positive={args.chair_positive_image_weight}"
+            f"chair_positive={args.chair_positive_image_weight}, "
+            f"backpack_positive={args.backpack_positive_image_weight}"
         )
+
     return WeightedRandomSampler(
         torch.tensor(weights, dtype=torch.double),
         num_samples=len(weights),

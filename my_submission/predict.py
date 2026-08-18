@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tta_matched_score_factor", type=float, default=1.0)
     parser.add_argument("--chair_score_threshold", type=float, default=-1.0)
     parser.add_argument("--chair_topk", type=int, default=0)
+    parser.add_argument(
+        "--class_score_thresholds",
+        default="",
+        help="JSON object or comma-separated class=threshold values for per-class filtering.",
+    )
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     return apply_config_defaults(parser)
 
@@ -96,6 +101,9 @@ def main() -> None:
         horizontal_flip_prob=0.0,
         color_jitter=0.0,
     )
+    class_score_thresholds = parse_class_score_thresholds(args.class_score_thresholds)
+    if args.chair_score_threshold >= 0:
+        class_score_thresholds["chair"] = args.chair_score_threshold
     dataset = ImageFolderDataset(args.image_dir, transform=transform)
     loader = DataLoader(
         dataset,
@@ -121,6 +129,7 @@ def main() -> None:
                 pre_nms_topk=args.pre_nms_topk,
                 score_cls_power=args.score_cls_power,
                 score_centerness_power=args.score_centerness_power,
+                class_score_thresholds=class_score_thresholds,
             )
             if args.tta_flip:
                 flipped_images = flip_valid_image_regions(images, image_sizes)
@@ -135,11 +144,11 @@ def main() -> None:
                     pre_nms_topk=args.pre_nms_topk,
                     score_cls_power=args.score_cls_power,
                     score_centerness_power=args.score_centerness_power,
+                    class_score_thresholds=class_score_thresholds,
                 )
                 if args.tta_merge_strategy == "consensus":
-                    class_thresholds = {}
-                    if args.chair_score_threshold >= 0:
-                        class_thresholds["chair"] = args.chair_score_threshold
+                    class_thresholds = dict(class_score_thresholds)
+
                     class_topk = {}
                     if args.chair_topk > 0:
                         class_topk["chair"] = args.chair_topk
@@ -201,6 +210,27 @@ class ImageFolderDataset(Dataset):
             "original_size": torch.tensor([height, width], dtype=torch.int64),
         }
         return self.transform(image, target)
+
+
+def parse_class_score_thresholds(raw: object) -> dict[str, float]:
+    if isinstance(raw, dict):
+        return {str(key): float(value) for key, value in raw.items()}
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    if raw.lstrip().startswith("{"):
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("--class_score_thresholds JSON must be an object")
+        return {str(key): float(value) for key, value in data.items()}
+    result = {}
+    for item in raw.split(","):
+        if not item.strip():
+            continue
+        if "=" not in item:
+            raise ValueError(f"Expected class=threshold, got: {item}")
+        class_name, value = item.split("=", 1)
+        result[class_name.strip()] = float(value)
+    return result
 
 
 def require_args(args: argparse.Namespace, names: list[str]) -> None:
