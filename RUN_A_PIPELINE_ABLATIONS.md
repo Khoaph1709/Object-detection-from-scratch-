@@ -6,7 +6,7 @@ This runbook evaluates improvements against the validated Run A baseline without
 
 Use a new Modal `run_name` for every ablation. Start each ablation from the same baseline checkpoint with `--resume-model-only`, so optimizer and scheduler are reset while the model weights remain comparable. Run experiments sequentially, not concurrently, because each experiment uses an L40S and a separate checkpoint directory.
 
-Each ablation is intentionally short: four epochs, validation after every epoch, and early stopping after one validation interval without improvement. The experiment is retained only if total validation mAP improves over 0.659358 and the chair/backpack regression is acceptable.
+Each ablation is intentionally short: four epochs, validation after every epoch, and early stopping after one validation interval without improvement. The fast-search configs use `batch_size=8` and `warmup_steps=300` at 704/1056 to reduce wall-clock time. If L40S memory exceeds the safe limit or an OOM occurs, change only `batch_size` from 8 to 6, then 4; keep the same config and run name only after the failed job is stopped. The experiment is retained only if total validation mAP improves over 0.659358 and the chair/backpack regression is acceptable.
 
 ## 0. Baseline checkpoint
 
@@ -20,7 +20,7 @@ Do not overwrite this directory. It is the rollback checkpoint for every experim
 
 ## 1. Assignment ablation
 
-This changes only `center_sampling_radius` from 1.5 to 2.0. Run:
+This changes only `center_sampling_radius` from 1.5 to 2.0. The fast-search config uses batch 8; this is intended for checkpoint discovery rather than a strict one-variable scientific ablation. Run:
 
 ```bash
 modal run --detach my_submission/modal_app.py \
@@ -47,7 +47,7 @@ modal run --detach my_submission/modal_app.py \
 
 ## 2. Quality-aware classification ablation
 
-This enables Quality Focal-style classification targets. For each positive location, the target is a detached combination of predicted IoU and FCOS centerness. Negative locations retain target zero. It changes classification score calibration while keeping the detector architecture unchanged.
+This enables Quality Focal-style classification targets. For each positive location, the target is a detached combination of predicted IoU and FCOS centerness. Negative locations retain target zero. It changes classification score calibration while keeping the detector architecture unchanged. The fast-search config uses batch 8 and warmup 300.
 
 Run:
 
