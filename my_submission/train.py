@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -63,6 +64,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chair_negative_weight", type=float, default=1.0)
     parser.add_argument("--backpack_positive_weight", type=float, default=1.0)
     parser.add_argument("--backpack_negative_weight", type=float, default=1.0)
+    parser.add_argument(
+        "--quality_aware_cls",
+        action="store_true",
+        help="Use quality-aware focal classification targets based on detached IoU and centerness.",
+    )
+    parser.add_argument(
+        "--quality_target_floor",
+        type=float,
+        default=0.20,
+        help="Minimum positive quality target when --quality_aware_cls is enabled.",
+    )
     parser.add_argument("--hard_negative_sampling", action="store_true")
     parser.add_argument("--empty_image_weight", type=float, default=1.0)
     parser.add_argument("--chair_confuser_weight", type=float, default=1.0)
@@ -165,6 +177,8 @@ def main() -> None:
         backpack_class_index=train_dataset.classes.index("backpack") if "backpack" in train_dataset.classes else -1,
         backpack_positive_weight=args.backpack_positive_weight,
         backpack_negative_weight=args.backpack_negative_weight,
+        quality_aware_cls=args.quality_aware_cls,
+        quality_target_floor=args.quality_target_floor,
     )
     optimizer = build_optimizer(model, args)
     scheduler_horizon = args.scheduler_epochs if args.scheduler_epochs > 0 else args.epochs
@@ -215,6 +229,10 @@ def main() -> None:
             scaler.load_state_dict(checkpoint["scaler"])
         best_map = float(checkpoint.get("best_map", -1.0))
         if args.resume_model_only:
+            baseline_best_path = checkpoint_dir / "best.pth"
+            if resume_path.resolve() != baseline_best_path.resolve() and not baseline_best_path.exists():
+                shutil.copy2(resume_path, baseline_best_path)
+                print(f"Initialized ablation best.pth from baseline checkpoint {resume_path}")
             print(
                 f"Loaded model weights from {resume_path}; starting fresh optimizer/scheduler "
                 f"with previous best mAP@0.5={best_map:.6f}"

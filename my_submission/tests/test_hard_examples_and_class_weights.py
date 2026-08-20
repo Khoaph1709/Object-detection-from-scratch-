@@ -102,5 +102,40 @@ class BackpackLossWeightTest(unittest.TestCase):
         self.assertGreater(float(weighted["loss_cls"]), float(base["loss_cls"]))
 
 
+class QualityAwareLossTest(unittest.TestCase):
+    def _make_outputs_and_targets(self):
+        features = OrderedDict(P2=torch.zeros(1, 8, 1, 1))
+        outputs = {
+            "features": features,
+            "cls_logits": OrderedDict(P2=torch.zeros(1, 5, 1, 1)),
+            "bbox_regression": OrderedDict(P2=torch.zeros(1, 4, 1, 1)),
+            "centerness": OrderedDict(P2=torch.zeros(1, 1, 1, 1)),
+        }
+        targets = {
+            "labels": torch.tensor([[2]], dtype=torch.long),
+            "reg_targets": torch.ones(1, 1, 4),
+            "centerness": torch.tensor([[0.5]], dtype=torch.float32),
+            "locations": torch.tensor([[2.0, 2.0]]),
+        }
+        return outputs, targets
+
+    def test_quality_aware_loss_is_finite_and_reports_quality_target(self) -> None:
+        outputs, targets = self._make_outputs_and_targets()
+        criterion = FCOSLoss(quality_aware_cls=True, quality_target_floor=0.20)
+        losses = criterion(outputs, targets, {"P2": 4})
+        self.assertTrue(torch.isfinite(losses["loss"]))
+        self.assertIn("quality_target_mean", losses)
+        quality = float(losses["quality_target_mean"])
+        self.assertGreaterEqual(quality, 0.20)
+        self.assertLessEqual(quality, 1.0)
+
+    def test_quality_aware_mode_differs_from_binary_focal_mode(self) -> None:
+        outputs, targets = self._make_outputs_and_targets()
+        binary = FCOSLoss()(outputs, targets, {"P2": 4})
+        quality = FCOSLoss(quality_aware_cls=True)(outputs, targets, {"P2": 4})
+        self.assertTrue(torch.isfinite(quality["loss"]))
+        self.assertNotEqual(float(binary["loss_cls"]), float(quality["loss_cls"]))
+
+
 if __name__ == "__main__":
     unittest.main()
