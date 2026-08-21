@@ -61,6 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--small_object_range_overlap", type=float, default=0.0)
     parser.add_argument("--focal_alpha", type=float, default=0.25)
     parser.add_argument("--focal_gamma", type=float, default=2.0)
+    parser.add_argument("--box_loss_type", choices=["giou", "diou"], default="giou")
     parser.add_argument("--chair_positive_weight", type=float, default=1.0)
     parser.add_argument("--chair_negative_weight", type=float, default=1.0)
     parser.add_argument("--backpack_positive_weight", type=float, default=1.0)
@@ -102,6 +103,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--small_object_crop_context", type=float, default=0.75)
     parser.add_argument("--small_object_crop_min_size", type=int, default=160)
     parser.add_argument("--small_object_crop_min_visible_fraction", type=float, default=0.5)
+    parser.add_argument("--random_erasing_prob", type=float, default=0.0)
+    parser.add_argument("--random_erasing_area_min", type=float, default=0.01)
+    parser.add_argument("--random_erasing_area_max", type=float, default=0.04)
+    parser.add_argument("--random_erasing_aspect_min", type=float, default=0.3)
+    parser.add_argument("--random_erasing_aspect_max", type=float, default=3.3)
+    parser.add_argument("--random_erasing_max_gt_overlap", type=float, default=0.05)
+    parser.add_argument("--random_erasing_attempts", type=int, default=20)
     parser.add_argument("--freeze_backbone_epochs", type=int, default=0)
     parser.add_argument("--val_interval", type=int, default=1)
     parser.add_argument("--max_steps", type=int, default=0)
@@ -153,6 +161,11 @@ def main() -> None:
         small_object_crop_context=args.small_object_crop_context,
         small_object_crop_min_size=args.small_object_crop_min_size,
         small_object_crop_min_visible_fraction=args.small_object_crop_min_visible_fraction,
+        random_erasing_prob=args.random_erasing_prob,
+        random_erasing_area_range=(args.random_erasing_area_min, args.random_erasing_area_max),
+        random_erasing_aspect_range=(args.random_erasing_aspect_min, args.random_erasing_aspect_max),
+        random_erasing_max_gt_overlap=args.random_erasing_max_gt_overlap,
+        random_erasing_attempts=args.random_erasing_attempts,
     )
     val_transform = DetectionTransform(
         train=False,
@@ -201,6 +214,7 @@ def main() -> None:
         num_classes=num_classes,
         focal_alpha=args.focal_alpha,
         focal_gamma=args.focal_gamma,
+        box_loss_type=args.box_loss_type,
         chair_class_index=train_dataset.classes.index("chair") if "chair" in train_dataset.classes else -1,
         chair_positive_weight=args.chair_positive_weight,
         chair_negative_weight=args.chair_negative_weight,

@@ -118,6 +118,30 @@ def paired_generalized_box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> to
     return iou - (enclosing - union) / enclosing.clamp(min=1e-6)
 
 
+def paired_distance_box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+    """DIoU for aligned box pairs with shape [N, 4] and [N, 4]."""
+    if boxes1.numel() == 0:
+        return boxes1.new_zeros((0,))
+
+    inter_lt = torch.maximum(boxes1[:, :2], boxes2[:, :2])
+    inter_rb = torch.minimum(boxes1[:, 2:], boxes2[:, 2:])
+    inter_wh = (inter_rb - inter_lt).clamp(min=0)
+    intersection = inter_wh[:, 0] * inter_wh[:, 1]
+    area1 = box_area(boxes1)
+    area2 = box_area(boxes2)
+    union = area1 + area2 - intersection
+    iou = intersection / union.clamp(min=1e-6)
+
+    centers1 = (boxes1[:, :2] + boxes1[:, 2:]) * 0.5
+    centers2 = (boxes2[:, :2] + boxes2[:, 2:]) * 0.5
+    center_distance = ((centers1 - centers2) ** 2).sum(dim=1)
+    enclosing_lt = torch.minimum(boxes1[:, :2], boxes2[:, :2])
+    enclosing_rb = torch.maximum(boxes1[:, 2:], boxes2[:, 2:])
+    enclosing_wh = (enclosing_rb - enclosing_lt).clamp(min=0)
+    enclosing_diagonal = (enclosing_wh ** 2).sum(dim=1)
+    return iou - center_distance / enclosing_diagonal.clamp(min=1e-6)
+
+
 def distance_to_boxes(points: torch.Tensor, distances: torch.Tensor) -> torch.Tensor:
     x = points[:, 0]
     y = points[:, 1]

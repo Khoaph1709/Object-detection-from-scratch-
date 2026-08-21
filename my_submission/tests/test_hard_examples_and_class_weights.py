@@ -104,6 +104,35 @@ class BackpackLossWeightTest(unittest.TestCase):
         self.assertGreater(float(weighted["loss_cls"]), float(base["loss_cls"]))
 
 
+class BoxLossAblationTest(unittest.TestCase):
+    def _make_outputs_and_targets(self):
+        features = OrderedDict(P2=torch.zeros(1, 8, 1, 1))
+        outputs = {
+            "features": features,
+            "cls_logits": OrderedDict(P2=torch.zeros(1, 5, 1, 1)),
+            "bbox_regression": OrderedDict(P2=torch.zeros(1, 4, 1, 1)),
+            "centerness": OrderedDict(P2=torch.zeros(1, 1, 1, 1)),
+        }
+        targets = {
+            "labels": torch.tensor([[2]], dtype=torch.long),
+            "reg_targets": torch.tensor([[[1.0, 1.0, 3.0, 3.0]]]),
+            "centerness": torch.tensor([[1.0]], dtype=torch.float32),
+            "locations": torch.tensor([[2.0, 2.0]]),
+        }
+        return outputs, targets
+
+    def test_diou_box_loss_is_finite_and_differs_from_giou(self) -> None:
+        outputs, targets = self._make_outputs_and_targets()
+        giou = FCOSLoss(box_loss_type="giou")(outputs, targets, {"P2": 4})
+        diou = FCOSLoss(box_loss_type="diou")(outputs, targets, {"P2": 4})
+        self.assertTrue(torch.isfinite(diou["loss_box"]))
+        self.assertNotAlmostEqual(float(giou["loss_box"]), float(diou["loss_box"]), places=6)
+
+    def test_invalid_box_loss_type_fails_fast(self) -> None:
+        with self.assertRaises(ValueError):
+            FCOSLoss(box_loss_type="ciou")
+
+
 class QualityAwareLossTest(unittest.TestCase):
     def _make_outputs_and_targets(self):
         features = OrderedDict(P2=torch.zeros(1, 8, 1, 1))

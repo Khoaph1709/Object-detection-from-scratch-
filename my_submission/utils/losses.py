@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 
-from .box_ops import distance_to_boxes, paired_generalized_box_iou
+from .box_ops import distance_to_boxes, paired_distance_box_iou, paired_generalized_box_iou
 from .locations import flatten_level_values
 
 
@@ -78,6 +78,7 @@ class FCOSLoss:
         num_classes: int = 5,
         box_weight: float = 2.0,
         centerness_weight: float = 1.0,
+        box_loss_type: str = "giou",
         focal_alpha: float = 0.25,
         focal_gamma: float = 2.0,
         chair_class_index: int = 2,
@@ -94,6 +95,9 @@ class FCOSLoss:
         self.num_classes = num_classes
         self.box_weight = box_weight
         self.centerness_weight = centerness_weight
+        self.box_loss_type = str(box_loss_type).lower()
+        if self.box_loss_type not in {"giou", "diou"}:
+            raise ValueError(f"Unsupported box_loss_type: {box_loss_type}")
         self.focal_alpha = focal_alpha
         self.focal_gamma = focal_gamma
         # PDF class order is bottle, cup, chair, laptop, backpack; keep these
@@ -216,8 +220,11 @@ class FCOSLoss:
         loss_cls = loss_cls_raw.sum() / num_positive
 
         if positive.any():
-            giou = paired_generalized_box_iou(pred_boxes, target_boxes)
-            loss_box = (1 - giou).sum() / num_positive
+            if self.box_loss_type == "diou":
+                overlap_quality = paired_distance_box_iou(pred_boxes, target_boxes)
+            else:
+                overlap_quality = paired_generalized_box_iou(pred_boxes, target_boxes)
+            loss_box = (1 - overlap_quality).sum() / num_positive
             loss_centerness = F.binary_cross_entropy_with_logits(
                 centerness_logits[positive],
                 centerness_targets[positive],

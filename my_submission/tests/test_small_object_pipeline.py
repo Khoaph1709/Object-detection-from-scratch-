@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import tempfile
 import unittest
 from argparse import Namespace
@@ -64,6 +65,32 @@ class SmallObjectCropTest(unittest.TestCase):
         transform = DetectionTransform(train=False, short_size=80, max_size=80)
         _, transformed = transform(image, target)
         self.assertEqual(tuple(transformed["crop_offset"].tolist()), (0, 0))
+
+
+class RandomErasingTest(unittest.TestCase):
+    def test_object_safe_erasing_changes_background_and_preserves_gt_region(self) -> None:
+        random.seed(7)
+        image = Image.new("RGB", (100, 100), color=(255, 255, 255))
+        target = {
+            "boxes": torch.tensor([[45.0, 45.0, 55.0, 55.0]]),
+            "labels": torch.tensor([4], dtype=torch.long),
+            "image_id": "backpack",
+        }
+        transform = DetectionTransform(
+            train=True,
+            short_size=100,
+            max_size=100,
+            horizontal_flip_prob=0.0,
+            random_erasing_prob=1.0,
+            random_erasing_area_range=(0.04, 0.04),
+            random_erasing_aspect_range=(1.0, 1.0),
+            random_erasing_max_gt_overlap=0.05,
+            random_erasing_attempts=50,
+        )
+        image_tensor, transformed = transform(image, target)
+        self.assertEqual(transformed["boxes"].tolist(), target["boxes"].tolist())
+        self.assertTrue(bool((image_tensor < 0).any()))
+        self.assertTrue(bool((image_tensor[:, 50, 50] > 0).all()))
 
 
 class SmallObjectAssignmentTest(unittest.TestCase):

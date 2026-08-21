@@ -291,3 +291,68 @@ my_submission/configs/train_run_a_small_object_hem_all_classes_l40s.json
 ```
 
 The sampler now merges mined weights with small-object weights using the maximum weight, so HEM does not disable the 1.35 small-object priority. The HEM continuation uses a lower learning rate, three maximum epochs, validation every epoch, and patience 1. It writes to a new directory and never overwrites the radius-2/small-object checkpoint.
+
+
+## 8. DIoU, chair-only HEM, and object-safe Random Erasing
+
+Three controlled continuation configs are available. All start from the epoch-1 small-object checkpoint and write to separate directories:
+
+```text
+train_run_a_small_object_diou_l40s.json
+train_run_a_small_object_chair_hem_l40s.json
+train_run_a_small_object_random_erasing_l40s.json
+```
+
+DIoU changes only the regression loss from GIoU to DIoU. Random Erasing is applied after resize, only on background regions whose intersection with every GT box is at most 5%. Its default ablation probability is 0.15 and erased area is 1–3% of the image.
+
+For chair-only HEM, first produce train predictions and mine only chair:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action predict \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --config-path /root/project/my_submission/configs/predict_run_a_highres.json \
+  --remote-image-dir /data/indoor5-v2-student/public/train/images \
+  --checkpoint-name best.pth \
+  --output-name train_predictions_small_object.json
+
+modal run --detach my_submission/modal_app.py \
+  --action mine_hard_examples \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --predictions-name train_predictions_small_object.json \
+  --mining-output-name chair_hard_example_weights.json \
+  --mining-classes 'chair' \
+  --mining-class-score-thresholds 'chair=0.20'
+```
+
+Then run each training ablation separately from the same checkpoint:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train --gpu L40S \
+  --run-name run_a_small_object_diou_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_small_object_diou_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_radius2_small_object_crop_sampler_l40s/best.pth \
+  --amp
+
+modal run --detach my_submission/modal_app.py \
+  --action train --gpu L40S \
+  --run-name run_a_small_object_chair_hem_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_small_object_chair_hem_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_radius2_small_object_crop_sampler_l40s/best.pth \
+  --amp
+
+modal run --detach my_submission/modal_app.py \
+  --action train --gpu L40S \
+  --run-name run_a_small_object_random_erasing_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_small_object_random_erasing_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_radius2_small_object_crop_sampler_l40s/best.pth \
+  --amp
+```
+
+Only keep a new checkpoint if total mAP exceeds 0.685816. Per-class improvements alone are insufficient; DIoU and Random Erasing must not materially damage backpack AP, while chair-only HEM must not trade away cup/backpack performance.
