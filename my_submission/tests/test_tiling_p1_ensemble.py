@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 
 from my_submission.models.detector import build_detector
+from my_submission.train import build_optimizer
 from my_submission.models.highres import P1Refinement
 from my_submission.scripts.ensemble_predictions import ensemble_prediction_files, weighted_boxes_fusion
 from my_submission.utils.augmentations import DetectionTransform
@@ -89,6 +90,30 @@ class P1ContractTest(unittest.TestCase):
         module = P1Refinement(32)
         output = module(torch.zeros(1, 32, 8, 10))
         self.assertEqual(tuple(output.shape), (1, 32, 16, 20))
+
+    def test_p1_head_is_in_optimizer_with_differential_learning_rates(self) -> None:
+        model = build_detector(
+            num_classes=5,
+            pretrained_backbone=False,
+            backbone_name="convnext_tiny",
+            fpn_type="bifpn",
+            bifpn_layers=1,
+            use_p1=True,
+        )
+        args = type("OptimizerArgs", (), {
+            "backbone_lr": 5e-7,
+            "head_lr": 5e-6,
+            "lr": 5e-6,
+            "weight_decay": 0.05,
+        })()
+        optimizer = build_optimizer(model, args)
+        optimized_ids = {
+            id(parameter)
+            for group in optimizer.param_groups
+            for parameter in group["params"]
+        }
+        self.assertTrue(all(id(parameter) in optimized_ids for parameter in model.p1_head.parameters()))
+        self.assertEqual(len(optimized_ids), len({id(parameter) for parameter in model.parameters()}))
 
 
 class WBFTest(unittest.TestCase):

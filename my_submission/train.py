@@ -658,6 +658,7 @@ def build_optimizer(model, args: argparse.Namespace):
             {"params": model.fpn.parameters(), "lr": head_lr},
             {"params": model.head.parameters(), "lr": head_lr},
             *([{"params": model.p1_refinement.parameters(), "lr": head_lr}] if getattr(model, "p1_refinement", None) is not None else []),
+            *([{"params": model.p1_head.parameters(), "lr": head_lr}] if getattr(model, "p1_head", None) is not None else []),
         ],
         lr=args.lr,
         weight_decay=args.weight_decay,
