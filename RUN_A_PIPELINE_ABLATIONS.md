@@ -238,3 +238,56 @@ modal run --detach my_submission/modal_app.py \
 ```
 
 Promote the new checkpoint only if it beats `0.674700` and does not materially reduce bottle, cup, chair, or backpack AP. If it fails, the radius-2.0 checkpoint remains the final rollback model. Do not enable this crop transform in validation or final submission inference.
+
+
+## 7. Score fusion and all-class HEM continuation
+
+Run score-fusion validation first. These configs keep the same high-resolution, no-TTA setup and change only the class/centerness score powers:
+
+```text
+predict_run_a_small_object_center_heavy.json: class .35 / center .65
+predict_run_a_small_object_center_60.json:    class .40 / center .60
+predict_run_a_small_object_class_heavy.json:   class .60 / center .40
+```
+
+Example:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action predict_val \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --config-path /root/project/my_submission/configs/predict_run_a_small_object_center_heavy.json \
+  --checkpoint-name best.pth \
+  --output-name val_predictions_center_heavy.json
+```
+
+If score fusion does not beat the current validation result, mine the train split using all five classes:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action predict \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --config-path /root/project/my_submission/configs/predict_run_a_highres.json \
+  --remote-image-dir /data/indoor5-v2-student/public/train/images \
+  --checkpoint-name best.pth \
+  --output-name train_predictions_small_object.json
+
+modal run --detach my_submission/modal_app.py \
+  --action mine_hard_examples \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --predictions-name train_predictions_small_object.json \
+  --mining-output-name combined_hard_example_weights_all_classes.json \
+  --mining-classes 'bottle,cup,chair,laptop,backpack' \
+  --mining-class-score-thresholds 'bottle=0.20,cup=0.20,chair=0.20,laptop=0.20,backpack=0.20'
+```
+
+Then fine-tune from the epoch-1 best checkpoint using:
+
+```text
+my_submission/configs/train_run_a_small_object_hem_all_classes_l40s.json
+```
+
+The sampler now merges mined weights with small-object weights using the maximum weight, so HEM does not disable the 1.35 small-object priority. The HEM continuation uses a lower learning rate, three maximum epochs, validation every epoch, and patience 1. It writes to a new directory and never overwrites the radius-2/small-object checkpoint.

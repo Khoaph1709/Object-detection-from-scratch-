@@ -522,20 +522,18 @@ def build_train_sampler(dataset, args: argparse.Namespace):
     for source_index in source_indices:
         image_info = base_dataset.images[source_index]
         image_id = str(image_info["id"])
-        if image_id in mined_weights:
-            weights.append(mined_weights[image_id])
-            continue
+        weight = float(mined_weights.get(image_id, 1.0))
 
         annotations = base_dataset.annotations_by_image.get(image_info["id"], [])
         labels = {annotation["class"] for annotation in annotations}
         if not annotations:
-            weight = args.empty_image_weight
+            weight = max(weight, args.empty_image_weight)
         else:
             class_positive_weights = [
                 args.chair_positive_image_weight if "chair" in labels else 1.0,
                 args.backpack_positive_image_weight if "backpack" in labels else 1.0,
             ]
-            weight = max(class_positive_weights)
+            weight = max(weight, max(class_positive_weights))
             if args.small_object_sampling:
                 image_area = max(float(image_info["width"] * image_info["height"]), 1.0)
                 has_small_object = any(
