@@ -61,7 +61,7 @@
   "bifpn_layers": 1,
   "use_p1": true,
   "val_interval": 1,
-  "early_stopping_patience": 1,
+  "early_stopping_patience": 3,
   "early_stopping_min_delta": 0.0005,
   "seed": 42,
   "max_steps": 0,
