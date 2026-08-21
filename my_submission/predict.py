@@ -182,6 +182,13 @@ def main() -> None:
                     det,
                     resized_size=tuple(int(v) for v in target["resized_size"].tolist()),
                     original_size=tuple(int(v) for v in target["original_size"].tolist()),
+                    crop_offset=tuple(
+                        int(v) for v in target.get("crop_offset", torch.zeros(2, dtype=torch.int64)).tolist()
+                    ),
+                    crop_size=tuple(
+                        int(v)
+                        for v in target.get("crop_size", target["original_size"]).tolist()
+                    ),
                 )
                 predictions.append({"image_id": target["image_id"], "boxes": scaled})
 

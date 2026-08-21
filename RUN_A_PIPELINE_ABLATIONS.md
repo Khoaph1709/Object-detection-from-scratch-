@@ -208,3 +208,33 @@ modal run --detach my_submission/modal_app.py \
 ```
 
 The blended checkpoint is promoted only if it exceeds the radius-2 baseline mAP of 0.674700 and does not materially regress chair or backpack AP/recall. If it fails to improve after the short run, keep the radius-2 checkpoint and do not run the combined sampler from the failed branch.
+
+
+## 6. Small-object crop + sampler + P2/P3 range-overlap retry
+
+This retry is intentionally based on the safe radius-2.0 checkpoint and keeps binary focal loss. It adds three small-object-specific changes without changing the detector checkpoint architecture:
+
+1. During training only, with probability 0.30, select an object whose bbox occupies at most 5% of the original image, crop it with context, and resize the crop. The transform preserves `original_size`, `crop_size`, and `crop_offset`, so validation/submission coordinates are mapped back to the original image.
+2. Use an image-level sampler weight of 1.35 for images containing at least one object below 5% image area. This applies to all classes, not only chair/backpack.
+3. Expand neighboring FCOS regression ranges by 8 pixels so small objects near the P2/P3 boundary are not discarded from the high-resolution level. The default overlap is zero, so the original baseline behavior is unchanged.
+
+The config is:
+
+```text
+my_submission/configs/train_run_a_radius2_small_object_crop_sampler_l40s.json
+```
+
+Run it from the safe baseline into a new checkpoint directory:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train \
+  --gpu L40S \
+  --run-name run_a_radius2_small_object_crop_sampler_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_radius2_small_object_crop_sampler_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_assignment_radius2_ablation_l40s/best.pth \
+  --amp
+```
+
+Promote the new checkpoint only if it beats `0.674700` and does not materially reduce bottle, cup, chair, or backpack AP. If it fails, the radius-2.0 checkpoint remains the final rollback model. Do not enable this crop transform in validation or final submission inference.

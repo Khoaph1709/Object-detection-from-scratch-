@@ -124,19 +124,23 @@ def scale_detections_to_original(
     detections: list[dict],
     resized_size: tuple[int, int],
     original_size: tuple[int, int],
+    crop_offset: tuple[int, int] = (0, 0),
+    crop_size: tuple[int, int] | None = None,
 ) -> list[dict]:
     resized_h, resized_w = resized_size
     original_h, original_w = original_size
-    scale_x = original_w / resized_w
-    scale_y = original_h / resized_h
+    crop_top, crop_left = crop_offset
+    source_h, source_w = crop_size or original_size
+    scale_x = source_w / resized_w
+    scale_y = source_h / resized_h
     scaled = []
     for det in detections:
         x1, y1, x2, y2 = det["bbox"]
         bbox = [
-            max(0.0, min(original_w, x1 * scale_x)),
-            max(0.0, min(original_h, y1 * scale_y)),
-            max(0.0, min(original_w, x2 * scale_x)),
-            max(0.0, min(original_h, y2 * scale_y)),
+            max(0.0, min(original_w, x1 * scale_x + crop_left)),
+            max(0.0, min(original_h, y1 * scale_y + crop_top)),
+            max(0.0, min(original_w, x2 * scale_x + crop_left)),
+            max(0.0, min(original_h, y2 * scale_y + crop_top)),
         ]
         if bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
             continue

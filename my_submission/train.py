@@ -58,6 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--nms_threshold", type=float, default=0.55)
     parser.add_argument("--pre_nms_topk", type=int, default=1000)
     parser.add_argument("--center_sampling_radius", type=float, default=1.5)
+    parser.add_argument("--small_object_range_overlap", type=float, default=0.0)
     parser.add_argument("--focal_alpha", type=float, default=0.25)
     parser.add_argument("--focal_gamma", type=float, default=2.0)
     parser.add_argument("--chair_positive_weight", type=float, default=1.0)
@@ -93,6 +94,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chair_positive_image_weight", type=float, default=1.0)
     parser.add_argument("--backpack_positive_image_weight", type=float, default=1.0)
     parser.add_argument("--mined_sampler_weights", default="")
+    parser.add_argument("--small_object_sampling", action="store_true")
+    parser.add_argument("--small_object_sampling_area_threshold", type=float, default=0.05)
+    parser.add_argument("--small_object_image_weight", type=float, default=1.25)
+    parser.add_argument("--small_object_crop_prob", type=float, default=0.0)
+    parser.add_argument("--small_object_area_threshold", type=float, default=0.05)
+    parser.add_argument("--small_object_crop_context", type=float, default=0.75)
+    parser.add_argument("--small_object_crop_min_size", type=int, default=160)
+    parser.add_argument("--small_object_crop_min_visible_fraction", type=float, default=0.5)
     parser.add_argument("--freeze_backbone_epochs", type=int, default=0)
     parser.add_argument("--val_interval", type=int, default=1)
     parser.add_argument("--max_steps", type=int, default=0)
@@ -139,6 +148,11 @@ def main() -> None:
         max_size=args.max_size,
         horizontal_flip_prob=0.5,
         color_jitter=0.2,
+        small_object_crop_prob=args.small_object_crop_prob,
+        small_object_area_threshold=args.small_object_area_threshold,
+        small_object_crop_context=args.small_object_crop_context,
+        small_object_crop_min_size=args.small_object_crop_min_size,
+        small_object_crop_min_visible_fraction=args.small_object_crop_min_visible_fraction,
     )
     val_transform = DetectionTransform(
         train=False,
@@ -178,7 +192,11 @@ def main() -> None:
         fpn_type=args.fpn_type,
         bifpn_layers=args.bifpn_layers,
     ).to(device)
-    assigner = FCOSTargetAssigner(model.strides, center_sampling_radius=args.center_sampling_radius)
+    assigner = FCOSTargetAssigner(
+        model.strides,
+        center_sampling_radius=args.center_sampling_radius,
+        range_overlap=args.small_object_range_overlap,
+    )
     criterion = FCOSLoss(
         num_classes=num_classes,
         focal_alpha=args.focal_alpha,
@@ -486,7 +504,7 @@ def require_args(args: argparse.Namespace, names: list[str]) -> None:
 
 
 def build_train_sampler(dataset, args: argparse.Namespace):
-    if not args.hard_negative_sampling and not args.mined_sampler_weights:
+    if not args.hard_negative_sampling and not args.mined_sampler_weights and not args.small_object_sampling:
         return None
 
     base_dataset = dataset
@@ -518,16 +536,29 @@ def build_train_sampler(dataset, args: argparse.Namespace):
                 args.backpack_positive_image_weight if "backpack" in labels else 1.0,
             ]
             weight = max(class_positive_weights)
+            if args.small_object_sampling:
+                image_area = max(float(image_info["width"] * image_info["height"]), 1.0)
+                has_small_object = any(
+                    0.0 <= (
+                        (float(annotation["bbox"][2]) - float(annotation["bbox"][0]))
+                        * (float(annotation["bbox"][3]) - float(annotation["bbox"][1]))
+                    ) / image_area <= args.small_object_sampling_area_threshold
+                    for annotation in annotations
+                )
+                if has_small_object:
+                    weight = max(weight, args.small_object_image_weight)
         weights.append(max(float(weight), 1e-6))
 
     if mined_weights:
         print(f"Using mined sampler weights from {args.mined_sampler_weights}")
     else:
         print(
-            "Using hard-negative sampler: "
+            "Using image sampler: "
             f"empty={args.empty_image_weight}, "
             f"chair_positive={args.chair_positive_image_weight}, "
-            f"backpack_positive={args.backpack_positive_image_weight}"
+            f"backpack_positive={args.backpack_positive_image_weight}, "
+            f"small_object={args.small_object_sampling}, "
+            f"small_object_weight={args.small_object_image_weight}"
         )
 
     return WeightedRandomSampler(
@@ -785,7 +816,15 @@ def write_predictions(
                 det,
                 resized_size=tuple(int(v) for v in target["resized_size"].tolist()),
                 original_size=tuple(int(v) for v in target["original_size"].tolist()),
+                crop_offset=tuple(
+                    int(v) for v in target.get("crop_offset", torch.zeros(2, dtype=torch.int64)).tolist()
+                ),
+                crop_size=tuple(
+                    int(v)
+                    for v in target.get("crop_size", target["original_size"]).tolist()
+                ),
             )
+
             results.append({"image_id": target["image_id"], "boxes": scaled})
 
     output_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")

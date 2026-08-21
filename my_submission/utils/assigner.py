@@ -22,10 +22,31 @@ class FCOSTargetAssigner:
         strides: dict[str, int],
         regression_ranges: dict[str, tuple[int, int]] | None = None,
         center_sampling_radius: float = 1.5,
+        range_overlap: float = 0.0,
     ) -> None:
         self.strides = strides
-        self.regression_ranges = regression_ranges or REGRESSION_RANGES
+        base_ranges = regression_ranges or REGRESSION_RANGES
+        self.regression_ranges = self._with_overlap(base_ranges, range_overlap)
         self.center_sampling_radius = center_sampling_radius
+
+    @staticmethod
+    def _with_overlap(
+        regression_ranges: dict[str, tuple[int, int]],
+        overlap: float,
+    ) -> dict[str, tuple[float, float]]:
+        overlap = max(0.0, float(overlap))
+        if overlap <= 0.0:
+            return dict(regression_ranges)
+        levels = list(regression_ranges)
+        expanded = {}
+        for index, level in enumerate(levels):
+            lower, upper = regression_ranges[level]
+            if index > 0:
+                lower = max(0.0, lower - overlap)
+            if index < len(levels) - 1:
+                upper = upper + overlap
+            expanded[level] = (lower, upper)
+        return expanded
 
     def __call__(
         self,
