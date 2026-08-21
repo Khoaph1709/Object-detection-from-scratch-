@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from argparse import Namespace
 from collections import OrderedDict
 
 import torch
 
 from my_submission.scripts.mine_hard_examples import mine_hard_examples
 from my_submission.scripts.tune_predictions import filter_predictions
+from my_submission.train import get_quality_blend_weight
 from my_submission.utils.losses import FCOSLoss
 
 
@@ -135,6 +137,31 @@ class QualityAwareLossTest(unittest.TestCase):
         quality = FCOSLoss(quality_aware_cls=True)(outputs, targets, {"P2": 4})
         self.assertTrue(torch.isfinite(quality["loss"]))
         self.assertNotEqual(float(binary["loss_cls"]), float(quality["loss_cls"]))
+
+    def test_blended_loss_interpolates_binary_and_quality_losses(self) -> None:
+        outputs, targets = self._make_outputs_and_targets()
+        binary = FCOSLoss()(outputs, targets, {"P2": 4})
+        quality = FCOSLoss(quality_aware_cls=True)(outputs, targets, {"P2": 4})
+        blended = FCOSLoss(quality_aware_cls=True)(
+            outputs,
+            targets,
+            {"P2": 4},
+            quality_blend_weight=0.25,
+        )
+        expected = 0.75 * float(binary["loss_cls"]) + 0.25 * float(quality["loss_cls"])
+        self.assertAlmostEqual(float(blended["quality_blend_weight"]), 0.25, places=6)
+        self.assertAlmostEqual(float(blended["loss_cls"]), expected, places=5)
+
+    def test_quality_blend_ramp_schedule(self) -> None:
+        args = Namespace(
+            quality_aware_cls=True,
+            quality_blend_start=0.25,
+            quality_blend_ramp_epochs=3,
+        )
+        self.assertAlmostEqual(get_quality_blend_weight(args, 1), 0.25)
+        self.assertAlmostEqual(get_quality_blend_weight(args, 2), 0.50)
+        self.assertAlmostEqual(get_quality_blend_weight(args, 3), 0.75)
+        self.assertAlmostEqual(get_quality_blend_weight(args, 4), 1.00)
 
 
 if __name__ == "__main__":

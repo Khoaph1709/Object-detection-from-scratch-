@@ -175,3 +175,36 @@ disown
 ```
 
 After the log prints `The detached App will keep running`, do not send Ctrl+C to the original `modal run` process. It is safe to stop a separate `tail -f quality_focal_modal.log` viewer.
+
+
+## 5. Blended/ramped Quality-aware retry
+
+The direct Quality-aware ablation can cause an abrupt confidence recalibration in the first epoch. The blended retry keeps binary focal loss as the stable base and ramps the Quality-aware contribution:
+
+```text
+loss_cls = (1 - quality_blend_weight) * binary_focal_loss
+         + quality_blend_weight * quality_focal_loss
+```
+
+The committed config is:
+
+```text
+my_submission/configs/train_run_a_radius2_quality_blended_l40s.json
+```
+
+It uses `quality_blend_start=0.25` and `quality_blend_ramp_epochs=3`, which gives approximately 0.25, 0.50, 0.75, and 1.00 over epochs 1–4. The training CSV records `quality_blend_weight` for verification.
+
+Run it from the successful radius-2 checkpoint:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train \
+  --gpu L40S \
+  --run-name run_a_radius2_quality_blended_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_radius2_quality_blended_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_assignment_radius2_ablation_l40s/best.pth \
+  --amp
+```
+
+The blended checkpoint is promoted only if it exceeds the radius-2 baseline mAP of 0.674700 and does not materially regress chair or backpack AP/recall. If it fails to improve after the short run, keep the radius-2 checkpoint and do not run the combined sampler from the failed branch.

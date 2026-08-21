@@ -88,6 +88,8 @@ class FCOSLoss:
         backpack_negative_weight: float = 1.0,
         quality_aware_cls: bool = False,
         quality_target_floor: float = 0.20,
+        quality_blend_start: float = 1.0,
+        quality_blend_ramp_epochs: int = 0,
     ) -> None:
         self.num_classes = num_classes
         self.box_weight = box_weight
@@ -104,8 +106,15 @@ class FCOSLoss:
         self.backpack_negative_weight = backpack_negative_weight
         self.quality_aware_cls = quality_aware_cls
         self.quality_target_floor = float(quality_target_floor)
+        self.quality_blend_start = float(quality_blend_start)
 
-    def __call__(self, outputs: dict, targets: dict, strides: dict[str, int]) -> dict[str, torch.Tensor]:
+    def __call__(
+        self,
+        outputs: dict,
+        targets: dict,
+        strides: dict[str, int],
+        quality_blend_weight: float | None = None,
+    ) -> dict[str, torch.Tensor]:
         cls_logits = flatten_level_values(outputs["cls_logits"]).float()
         bbox_raw = flatten_level_values(outputs["bbox_regression"]).float()
         centerness_logits = flatten_level_values(outputs["centerness"]).squeeze(-1).float()
@@ -150,21 +159,31 @@ class FCOSLoss:
             positive_targets = quality_targets[positive] if self.quality_aware_cls else torch.ones_like(quality_targets[positive])
             cls_targets[batch_idx, loc_idx, labels[positive]] = positive_targets
 
+        binary_cls_targets = torch.zeros_like(cls_logits)
+        if positive.any():
+            batch_idx, loc_idx = torch.where(positive)
+            binary_cls_targets[batch_idx, loc_idx, labels[positive]] = 1.0
+        binary_cls_raw = sigmoid_focal_loss(
+            cls_logits[valid],
+            binary_cls_targets[valid],
+            alpha=self.focal_alpha,
+            gamma=self.focal_gamma,
+            reduction="none",
+        )
         if self.quality_aware_cls:
-            loss_cls_raw = quality_focal_loss(
+            quality_cls_raw = quality_focal_loss(
                 cls_logits[valid],
                 cls_targets[valid],
                 gamma=self.focal_gamma,
                 reduction="none",
             )
+            if quality_blend_weight is None:
+                quality_blend_weight = self.quality_blend_start
+            quality_blend_weight = float(max(0.0, min(1.0, quality_blend_weight)))
+            loss_cls_raw = (1.0 - quality_blend_weight) * binary_cls_raw + quality_blend_weight * quality_cls_raw
         else:
-            loss_cls_raw = sigmoid_focal_loss(
-                cls_logits[valid],
-                cls_targets[valid],
-                alpha=self.focal_alpha,
-                gamma=self.focal_gamma,
-                reduction="none",
-            )
+            quality_blend_weight = 0.0
+            loss_cls_raw = binary_cls_raw
 
         class_weight_specs = [
             (
@@ -215,6 +234,7 @@ class FCOSLoss:
             "loss_box": loss_box.detach(),
             "loss_centerness": loss_centerness.detach(),
             "num_positive": num_positive.detach(),
+            "quality_blend_weight": cls_logits.new_tensor(float(quality_blend_weight)),
         }
         if self.quality_aware_cls and positive.any():
             result["quality_target_mean"] = quality_targets[positive].mean().detach()

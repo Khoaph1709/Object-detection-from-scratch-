@@ -75,6 +75,18 @@ def parse_args() -> argparse.Namespace:
         default=0.20,
         help="Minimum positive quality target when --quality_aware_cls is enabled.",
     )
+    parser.add_argument(
+        "--quality_blend_start",
+        type=float,
+        default=1.0,
+        help="Initial fraction of quality-aware classification loss in the blended loss.",
+    )
+    parser.add_argument(
+        "--quality_blend_ramp_epochs",
+        type=int,
+        default=0,
+        help="Linearly ramp quality-aware loss from quality_blend_start to 1.0 over this many epochs; 0 uses the start value.",
+    )
     parser.add_argument("--hard_negative_sampling", action="store_true")
     parser.add_argument("--empty_image_weight", type=float, default=1.0)
     parser.add_argument("--chair_confuser_weight", type=float, default=1.0)
@@ -179,6 +191,7 @@ def main() -> None:
         backpack_negative_weight=args.backpack_negative_weight,
         quality_aware_cls=args.quality_aware_cls,
         quality_target_floor=args.quality_target_floor,
+        quality_blend_start=args.quality_blend_start,
     )
     optimizer = build_optimizer(model, args)
     scheduler_horizon = args.scheduler_epochs if args.scheduler_epochs > 0 else args.epochs
@@ -254,6 +267,7 @@ def main() -> None:
     for epoch in range(start_epoch, args.epochs + 1):
         set_backbone_trainable(model, trainable=epoch > args.freeze_backbone_epochs)
         model.train()
+        quality_blend_weight = get_quality_blend_weight(args, epoch)
         progress = tqdm(train_loader, desc=f"epoch {epoch}/{args.epochs}")
         for batch in progress:
             images = batch["images"].to(device)
@@ -264,7 +278,12 @@ def main() -> None:
                 outputs = model(images)
                 locations = generate_locations(outputs["features"], model.strides)
                 assigned = assigner(locations, targets)
-                losses = criterion(outputs, assigned, model.strides)
+                losses = criterion(
+                    outputs,
+                    assigned,
+                    model.strides,
+                    quality_blend_weight=quality_blend_weight,
+                )
 
             if not torch.isfinite(losses["loss"]):
                 global_step += 1
@@ -284,6 +303,7 @@ def main() -> None:
                     if torch.isfinite(losses["loss_centerness"])
                     else float("nan"),
                     "num_positive": int(losses["num_positive"].cpu()),
+                    "quality_blend_weight": float(losses["quality_blend_weight"].cpu()),
                     **gpu_stats,
                 }
                 append_train_log(train_log_path, loss_row)
@@ -313,6 +333,7 @@ def main() -> None:
                 "loss_box": float(losses["loss_box"].detach().cpu()),
                 "loss_centerness": float(losses["loss_centerness"].detach().cpu()),
                 "num_positive": int(losses["num_positive"].cpu()),
+                "quality_blend_weight": float(losses["quality_blend_weight"].cpu()),
                 **gpu_stats,
             }
             progress.set_postfix(
@@ -550,6 +571,17 @@ def set_backbone_trainable(model, trainable: bool) -> None:
         parameter.requires_grad = trainable
 
 
+def get_quality_blend_weight(args: argparse.Namespace, epoch: int) -> float:
+    if not args.quality_aware_cls:
+        return 0.0
+    start = max(0.0, min(1.0, float(args.quality_blend_start)))
+    ramp_epochs = int(args.quality_blend_ramp_epochs)
+    if ramp_epochs <= 0:
+        return start
+    progress = max(0.0, min(1.0, float(epoch - 1) / float(ramp_epochs)))
+    return start + (1.0 - start) * progress
+
+
 def get_gpu_memory_stats(device: torch.device) -> dict[str, float]:
     if device.type != "cuda":
         return {
@@ -599,6 +631,7 @@ def ensure_train_log_header(path: Path) -> None:
                 "loss_box",
                 "loss_centerness",
                 "num_positive",
+                "quality_blend_weight",
                 "gpu_allocated_mb",
                 "gpu_reserved_mb",
                 "gpu_max_allocated_mb",
