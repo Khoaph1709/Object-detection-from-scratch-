@@ -426,3 +426,6 @@ WBF is class-aware and should be compared against the best single model. It cann
 ### Recommended two-day order
 
 Run tiled validation inference first. If it improves validation mAP, run tiled fine-tuning. In parallel or after that, run P1 only if the L40S memory smoke remains safe. Use WBF last, only with prediction files that were generated under the same class order and evaluator protocol. Every candidate must exceed the current best before it replaces the candidate.
+
+
+For `train_run_a_sliced_small_object_l40s.json`, `tile_val_inference=true` means each validation epoch is evaluated after tile predictions are mapped and merged back to image-level coordinates. The resulting `val_history.jsonl` is therefore directly comparable to sliced inference, not to full-image-only validation. Keep the full-image baseline separately for a control comparison.

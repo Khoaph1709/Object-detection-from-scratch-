@@ -25,7 +25,8 @@ from my_submission.utils.config import add_config_argument, apply_config_default
 from my_submission.utils.dataset import DetectionDataset, detection_collate_fn
 from my_submission.utils.locations import generate_locations
 from my_submission.utils.losses import FCOSLoss
-from my_submission.utils.postprocess import decode_detections, scale_detections_to_original
+from my_submission.utils.postprocess import decode_detections, merge_detections, scale_detections_to_original
+from my_submission.utils.tiling import TiledImageDataset, group_tile_predictions
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,6 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--score_centerness_power", type=float, default=0.5)
     parser.add_argument("--nms_threshold", type=float, default=0.55)
     parser.add_argument("--pre_nms_topk", type=int, default=1000)
+    parser.add_argument("--max_detections_per_image", type=int, default=100)
     parser.add_argument("--center_sampling_radius", type=float, default=1.5)
     parser.add_argument("--small_object_range_overlap", type=float, default=0.0)
     parser.add_argument("--focal_alpha", type=float, default=0.25)
@@ -129,6 +131,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fpn_type", choices=["fpn", "bifpn"], default="fpn")
     parser.add_argument("--bifpn_layers", type=int, default=1)
     parser.add_argument("--use_p1", action="store_true", help="Add optional stride-2 refined P1 small-object branch.")
+    parser.add_argument("--tile_val_inference", action="store_true", help="Evaluate validation through sliced tiles.")
+    parser.add_argument("--tile_val_size", type=int, default=640)
+    parser.add_argument("--tile_val_overlap", type=float, default=0.20)
     parser.add_argument("--resume", default="", help="Path to a checkpoint to resume from.")
     parser.add_argument(
         "--resume_model_only",
@@ -186,6 +191,14 @@ def main() -> None:
 
     train_dataset = DetectionDataset(args.train_data, args.image_dir, transform=train_transform)
     val_dataset = DetectionDataset(args.val_data, args.val_image_dir, transform=val_transform)
+    val_prediction_dataset = val_dataset
+    if args.tile_val_inference:
+        val_prediction_dataset = TiledImageDataset(
+            args.val_image_dir,
+            transform=val_transform,
+            tile_size=args.tile_val_size,
+            tile_overlap=args.tile_val_overlap,
+        )
     if train_dataset.classes != val_dataset.classes:
         raise ValueError(
             "Train/val class lists must match exactly. "
@@ -437,7 +450,7 @@ def main() -> None:
             predictions_path = checkpoint_dir / "val_predictions.json"
             write_predictions(
                 model,
-                val_dataset,
+                val_prediction_dataset,
                 device,
                 predictions_path,
                 score_threshold=args.score_threshold,
@@ -447,6 +460,9 @@ def main() -> None:
                 score_centerness_power=args.score_centerness_power,
                 batch_size=args.batch_size,
                 num_workers=args.num_workers,
+                tile_inference=args.tile_val_inference,
+                tile_nms_threshold=args.nms_threshold,
+                tile_max_detections_per_image=args.max_detections_per_image,
             )
             score = run_public_evaluator(
                 Path(args.val_data),
@@ -839,6 +855,9 @@ def write_predictions(
     score_centerness_power: float = 0.5,
     batch_size: int = 4,
     num_workers: int = 0,
+    tile_inference: bool = False,
+    tile_nms_threshold: float = 0.55,
+    tile_max_detections_per_image: int = 100,
 ) -> None:
     loader = DataLoader(
         dataset,
@@ -848,7 +867,7 @@ def write_predictions(
         collate_fn=detection_collate_fn,
     )
     model.eval()
-    results = []
+    raw_results = []
     for batch in tqdm(loader, desc="predict-val"):
         images = batch["images"].to(device)
         outputs = model(images)
@@ -877,7 +896,33 @@ def write_predictions(
                 ),
             )
 
-            results.append({"image_id": target["image_id"], "boxes": scaled})
+            raw_results.append(
+                {
+                    "image_id": target["image_id"],
+                    "boxes": scaled,
+                    "original_size": [int(v) for v in target["original_size"].tolist()],
+                }
+            )
+
+    if tile_inference:
+        grouped = group_tile_predictions(raw_results)
+        sizes = {}
+        for item in raw_results:
+            sizes.setdefault(item["image_id"], tuple(item["original_size"]))
+        results = [
+            {
+                "image_id": image_id,
+                "boxes": merge_detections(
+                    boxes,
+                    image_size=sizes[image_id],
+                    nms_threshold=tile_nms_threshold,
+                    max_detections_per_image=tile_max_detections_per_image,
+                ),
+            }
+            for image_id, boxes in grouped.items()
+        ]
+    else:
+        results = [{"image_id": item["image_id"], "boxes": item["boxes"]} for item in raw_results]
 
     output_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 
