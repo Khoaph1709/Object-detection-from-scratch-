@@ -356,3 +356,73 @@ modal run --detach my_submission/modal_app.py \
 ```
 
 Only keep a new checkpoint if total mAP exceeds 0.685816. Per-class improvements alone are insufficient; DIoU and Random Erasing must not materially damage backpack AP, while chair-only HEM must not trade away cup/backpack performance.
+
+
+## 9. Deadline-safe tiled/P1/ensemble experiments
+
+The following additions are isolated and preserve the safe checkpoint:
+
+```text
+/data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth
+```
+
+### Tiled validation inference
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action predict_val \
+  --gpu L40S \
+  --run-name run_a_small_object_chair_hem_l40s \
+  --config-path /root/project/my_submission/configs/predict_run_a_sliced_small_object.json \
+  --checkpoint-name best.pth \
+  --output-name val_predictions_sliced.json
+```
+
+The tiled dataset uses 640-pixel tiles with 20% overlap, maps each tile prediction back to original coordinates, groups by image id, and applies class-wise NMS after merging. Tiling is disabled by default in all existing configs.
+
+### Tiled fine-tuning
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train --gpu L40S \
+  --run-name run_a_sliced_small_object_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_sliced_small_object_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth \
+  --amp
+```
+
+This keeps 70% full-image training behavior and samples object-centered 640-pixel tiles with probability 0.30 for objects at or below 5% image area. It requires visible fraction 0.70 and does not apply a second small-object crop in the same transform call.
+
+### P1 high-resolution ablation
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train --gpu L40S \
+  --run-name run_a_small_object_p1_l40s \
+  --config-path /root/project/my_submission/configs/train_run_a_small_object_p1_l40s.json \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth \
+  --amp
+```
+
+P1 is synthesized from P2 by a learned stride-2 refinement. Existing P2-P7 checkpoints are warm-started with strict checks; only `p1_refinement.*` is newly initialized. P1 uses a separate regression range and is disabled in all baseline configs.
+
+### WBF ensemble
+
+After producing two prediction JSONs with the same evaluator schema and original-image coordinates:
+
+```bash
+python3 my_submission/scripts/ensemble_predictions.py \
+  --predictions predictions_model_a.json predictions_model_b.json \
+  --output predictions_wbf.json \
+  --iou_threshold 0.55 \
+  --skip_box_threshold 0.03 \
+  --max_detections_per_image 100
+```
+
+WBF is class-aware and should be compared against the best single model. It cannot correct a class error shared by all models.
+
+### Recommended two-day order
+
+Run tiled validation inference first. If it improves validation mAP, run tiled fine-tuning. In parallel or after that, run P1 only if the L40S memory smoke remains safe. Use WBF last, only with prediction files that were generated under the same class order and evaluator protocol. Every candidate must exceed the current best before it replaces the candidate.

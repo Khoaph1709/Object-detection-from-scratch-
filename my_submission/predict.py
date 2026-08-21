@@ -20,6 +20,7 @@ from my_submission.utils.classes import set_active_classes
 from my_submission.utils.checkpoint import resolve_checkpoint_path
 from my_submission.utils.config import add_config_argument, apply_config_defaults
 from my_submission.utils.dataset import detection_collate_fn
+from my_submission.utils.tiling import TiledImageDataset, group_tile_predictions
 from my_submission.utils.postprocess import (
     decode_detections,
     flip_detections_horizontal,
@@ -34,6 +35,9 @@ def parse_args() -> argparse.Namespace:
     add_config_argument(parser)
     parser.add_argument("--image_dir", default="")
     parser.add_argument("--output", default="")
+    parser.add_argument("--tile_inference", action="store_true")
+    parser.add_argument("--tile_size", type=int, default=640)
+    parser.add_argument("--tile_overlap", type=float, default=0.20)
     parser.add_argument("--checkpoint", default="models/best.pth")
     parser.add_argument("--checkpoint_url", default="")
     parser.add_argument("--checkpoint_sha256", default="")
@@ -90,6 +94,7 @@ def main() -> None:
         backbone_name=checkpoint_args.get("backbone_name", "convnext_tiny"),
         fpn_type=checkpoint_args.get("fpn_type", "fpn"),
         bifpn_layers=int(checkpoint_args.get("bifpn_layers", 1)),
+        use_p1=bool(checkpoint_args.get("use_p1", False)),
     ).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
@@ -104,7 +109,15 @@ def main() -> None:
     class_score_thresholds = parse_class_score_thresholds(args.class_score_thresholds)
     if args.chair_score_threshold >= 0:
         class_score_thresholds["chair"] = args.chair_score_threshold
-    dataset = ImageFolderDataset(args.image_dir, transform=transform)
+    if args.tile_inference:
+        dataset = TiledImageDataset(
+            args.image_dir,
+            transform=transform,
+            tile_size=args.tile_size,
+            tile_overlap=args.tile_overlap,
+        )
+    else:
+        dataset = ImageFolderDataset(args.image_dir, transform=transform)
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -113,7 +126,7 @@ def main() -> None:
         collate_fn=detection_collate_fn,
     )
 
-    predictions = []
+    raw_predictions = []
     with torch.no_grad():
         for batch in tqdm(loader, desc="predict"):
             images = batch["images"].to(device)
@@ -190,7 +203,38 @@ def main() -> None:
                         for v in target.get("crop_size", target["original_size"]).tolist()
                     ),
                 )
-                predictions.append({"image_id": target["image_id"], "boxes": scaled})
+                raw_predictions.append(
+                    {
+                        "image_id": target["image_id"],
+                        "boxes": scaled,
+                        "original_size": [
+                            int(v) for v in target["original_size"].tolist()
+                        ],
+                    }
+                )
+
+    if args.tile_inference:
+        grouped = group_tile_predictions(raw_predictions)
+        sizes = {}
+        for item in raw_predictions:
+            sizes.setdefault(item["image_id"], tuple(item["original_size"]))
+        predictions = [
+            {
+                "image_id": image_id,
+                "boxes": merge_detections(
+                    boxes,
+                    image_size=sizes[image_id],
+                    nms_threshold=args.nms_threshold,
+                    max_detections_per_image=args.max_detections_per_image,
+                ),
+            }
+            for image_id, boxes in grouped.items()
+        ]
+    else:
+        predictions = [
+            {"image_id": item["image_id"], "boxes": item["boxes"]}
+            for item in raw_predictions
+        ]
 
     Path(args.output).write_text(json.dumps(predictions, ensure_ascii=False, indent=2), encoding="utf-8")
 

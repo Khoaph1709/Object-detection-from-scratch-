@@ -5,6 +5,16 @@ from collections import OrderedDict
 import torch
 
 
+REGRESSION_RANGES_P1 = {
+    "p1": (0, 16),
+    "p2": (16, 32),
+    "p3": (32, 64),
+    "p4": (64, 128),
+    "p5": (128, 256),
+    "p6": (256, 512),
+    "p7": (512, 1_000_000),
+}
+
 REGRESSION_RANGES = {
     # The stride-4 level is essential for the small objects in the assignment.
     "p2": (0, 32),
@@ -25,7 +35,12 @@ class FCOSTargetAssigner:
         range_overlap: float = 0.0,
     ) -> None:
         self.strides = strides
-        base_ranges = regression_ranges or REGRESSION_RANGES
+        if regression_ranges is not None:
+            base_ranges = regression_ranges
+        elif "p1" in strides:
+            base_ranges = REGRESSION_RANGES_P1
+        else:
+            base_ranges = REGRESSION_RANGES
         self.regression_ranges = self._with_overlap(base_ranges, range_overlap)
         self.center_sampling_radius = center_sampling_radius
 

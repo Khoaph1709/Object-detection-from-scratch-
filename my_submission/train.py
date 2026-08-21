@@ -103,6 +103,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--small_object_crop_context", type=float, default=0.75)
     parser.add_argument("--small_object_crop_min_size", type=int, default=160)
     parser.add_argument("--small_object_crop_min_visible_fraction", type=float, default=0.5)
+    parser.add_argument("--tile_train_prob", type=float, default=0.0)
+    parser.add_argument("--tile_train_size", type=int, default=640)
+    parser.add_argument("--tile_train_area_threshold", type=float, default=0.05)
+    parser.add_argument("--tile_train_min_visible_fraction", type=float, default=0.70)
     parser.add_argument("--random_erasing_prob", type=float, default=0.0)
     parser.add_argument("--random_erasing_area_min", type=float, default=0.01)
     parser.add_argument("--random_erasing_area_max", type=float, default=0.04)
@@ -124,6 +128,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backbone_name", choices=["convnext_tiny", "convnext_small"], default="convnext_tiny")
     parser.add_argument("--fpn_type", choices=["fpn", "bifpn"], default="fpn")
     parser.add_argument("--bifpn_layers", type=int, default=1)
+    parser.add_argument("--use_p1", action="store_true", help="Add optional stride-2 refined P1 small-object branch.")
     parser.add_argument("--resume", default="", help="Path to a checkpoint to resume from.")
     parser.add_argument(
         "--resume_model_only",
@@ -161,6 +166,10 @@ def main() -> None:
         small_object_crop_context=args.small_object_crop_context,
         small_object_crop_min_size=args.small_object_crop_min_size,
         small_object_crop_min_visible_fraction=args.small_object_crop_min_visible_fraction,
+        tile_train_prob=args.tile_train_prob,
+        tile_train_size=args.tile_train_size,
+        tile_train_area_threshold=args.tile_train_area_threshold,
+        tile_train_min_visible_fraction=args.tile_train_min_visible_fraction,
         random_erasing_prob=args.random_erasing_prob,
         random_erasing_area_range=(args.random_erasing_area_min, args.random_erasing_area_max),
         random_erasing_aspect_range=(args.random_erasing_aspect_min, args.random_erasing_aspect_max),
@@ -204,6 +213,7 @@ def main() -> None:
         backbone_name=args.backbone_name,
         fpn_type=args.fpn_type,
         bifpn_layers=args.bifpn_layers,
+        use_p1=args.use_p1,
     ).to(device)
     assigner = FCOSTargetAssigner(
         model.strides,
@@ -254,18 +264,46 @@ def main() -> None:
             "backbone_name": checkpoint_args.get("backbone_name", "convnext_tiny"),
             "fpn_type": checkpoint_args.get("fpn_type", "fpn"),
             "bifpn_layers": int(checkpoint_args.get("bifpn_layers", 1)),
+            "use_p1": bool(checkpoint_args.get("use_p1", False)),
         }
+        checkpoint_architecture = dict(checkpoint_architecture)
+        checkpoint_architecture.setdefault("use_p1", False)
         expected_architecture = {
             "backbone_name": args.backbone_name,
             "fpn_type": args.fpn_type,
             "bifpn_layers": args.bifpn_layers,
+            "use_p1": bool(args.use_p1),
         }
-        if checkpoint_architecture != expected_architecture:
+        architecture_mismatch = checkpoint_architecture != expected_architecture
+        p1_warm_start = (
+            args.resume_model_only
+            and not checkpoint_architecture.get("use_p1", False)
+            and expected_architecture.get("use_p1", False)
+            and all(
+                checkpoint_architecture.get(key) == expected_architecture.get(key)
+                for key in ("backbone_name", "fpn_type", "bifpn_layers")
+            )
+        )
+        if architecture_mismatch and not p1_warm_start:
             raise ValueError(
                 "Resume checkpoint architecture does not match the current configuration. "
                 f"checkpoint={checkpoint_architecture}, current={expected_architecture}"
             )
-        model.load_state_dict(checkpoint["model"])
+        if p1_warm_start:
+            missing, unexpected = model.load_state_dict(checkpoint["model"], strict=False)
+            bad_missing = [
+                key
+                for key in missing
+                if not (key.startswith("p1_refinement.") or key.startswith("p1_head."))
+            ]
+            if unexpected or bad_missing:
+                raise RuntimeError(
+                    "Unsafe P1 warm-start state dict mismatch: "
+                    f"missing={bad_missing}, unexpected={unexpected}"
+                )
+            print("Warm-started P1 branch from baseline; only P1 refinement/head weights are newly initialized.")
+        else:
+            model.load_state_dict(checkpoint["model"])
         if not args.resume_model_only and "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])
         if not args.resume_model_only and "scheduler" in checkpoint and scheduler is not None:
@@ -603,6 +641,7 @@ def build_optimizer(model, args: argparse.Namespace):
             {"params": model.backbone.parameters(), "lr": backbone_lr},
             {"params": model.fpn.parameters(), "lr": head_lr},
             {"params": model.head.parameters(), "lr": head_lr},
+            *([{"params": model.p1_refinement.parameters(), "lr": head_lr}] if getattr(model, "p1_refinement", None) is not None else []),
         ],
         lr=args.lr,
         weight_decay=args.weight_decay,
@@ -779,6 +818,7 @@ def save_checkpoint(
                 "backbone_name": args.backbone_name,
                 "fpn_type": args.fpn_type,
                 "bifpn_layers": args.bifpn_layers,
+                "use_p1": bool(args.use_p1),
             },
             "class_names": class_names,
         },

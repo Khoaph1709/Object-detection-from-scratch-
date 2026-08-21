@@ -28,6 +28,10 @@ class DetectionTransform:
     small_object_crop_context: float = 0.75
     small_object_crop_min_size: int = 160
     small_object_crop_min_visible_fraction: float = 0.5
+    tile_train_prob: float = 0.0
+    tile_train_size: int = 640
+    tile_train_area_threshold: float = 0.05
+    tile_train_min_visible_fraction: float = 0.70
     random_erasing_prob: float = 0.0
     random_erasing_area_range: Tuple[float, float] = (0.01, 0.04)
     random_erasing_aspect_range: Tuple[float, float] = (0.3, 3.3)
@@ -40,7 +44,10 @@ class DetectionTransform:
 
         target = dict(target)
         crop_offset = (0, 0)
-        if self.train and self.small_object_crop_prob > 0.0:
+        tile_applied = False
+        if self.train and self.tile_train_prob > 0.0:
+            image, target, crop_offset, tile_applied = self._maybe_tile_train_crop(image, target)
+        if self.train and not tile_applied and self.small_object_crop_prob > 0.0:
             image, target, crop_offset = self._maybe_small_object_crop(image, target)
 
         source_width, source_height = image.size
@@ -80,6 +87,64 @@ class DetectionTransform:
             image_tensor = (image_tensor - IMAGENET_MEAN) / IMAGENET_STD
 
         return image_tensor, target
+
+    def _maybe_tile_train_crop(self, image: Image.Image, target: Dict[str, torch.Tensor]):
+        if random.random() >= min(1.0, max(0.0, self.tile_train_prob)):
+            return image, target, (0, 0), False
+        boxes = target.get("boxes")
+        labels = target.get("labels")
+        if boxes is None or labels is None or boxes.numel() == 0:
+            return image, target, (0, 0), False
+        image_width, image_height = image.size
+        image_area = float(max(image_width * image_height, 1))
+        widths = (boxes[:, 2] - boxes[:, 0]).clamp(min=0)
+        heights = (boxes[:, 3] - boxes[:, 1]).clamp(min=0)
+        area_ratio = widths * heights / image_area
+        candidates = torch.where(
+            (area_ratio <= max(0.0, float(self.tile_train_area_threshold)))
+            & (widths >= 2.0)
+            & (heights >= 2.0)
+        )[0]
+        if candidates.numel() == 0:
+            return image, target, (0, 0), False
+
+        selected = int(candidates[random.randrange(candidates.numel())].item())
+        x1, y1, x2, y2 = [float(value) for value in boxes[selected].tolist()]
+        tile_size = max(2, int(self.tile_train_size))
+        tile_width = min(tile_size, image_width)
+        tile_height = min(tile_size, image_height)
+        center_x = 0.5 * (x1 + x2)
+        center_y = 0.5 * (y1 + y2)
+        left = int(round(center_x - tile_width / 2.0))
+        top = int(round(center_y - tile_height / 2.0))
+        left = min(max(left, 0), image_width - tile_width)
+        top = min(max(top, 0), image_height - tile_height)
+        right, bottom = left + tile_width, top + tile_height
+
+        cropped_image = image.crop((left, top, right, bottom))
+        cropped_target = dict(target)
+        cropped_boxes = boxes.clone()
+        cropped_boxes[:, [0, 2]] -= float(left)
+        cropped_boxes[:, [1, 3]] -= float(top)
+        cropped_boxes = clip_boxes_to_image(cropped_boxes, (tile_height, tile_width))
+        original_areas = (boxes[:, 2] - boxes[:, 0]).clamp(min=0) * (
+            boxes[:, 3] - boxes[:, 1]
+        ).clamp(min=0)
+        visible_areas = (cropped_boxes[:, 2] - cropped_boxes[:, 0]).clamp(min=0) * (
+            cropped_boxes[:, 3] - cropped_boxes[:, 1]
+        ).clamp(min=0)
+        visible_fraction = visible_areas / original_areas.clamp(min=1e-6)
+        keep = (
+            (cropped_boxes[:, 2] > cropped_boxes[:, 0] + 1.0)
+            & (cropped_boxes[:, 3] > cropped_boxes[:, 1] + 1.0)
+            & (
+                (visible_fraction >= max(0.0, min(1.0, self.tile_train_min_visible_fraction)))
+                | (torch.arange(boxes.shape[0], device=boxes.device) == selected)
+            )
+        )
+        cropped_target["boxes"] = cropped_boxes[keep]
+        cropped_target["labels"] = labels[keep]
+        return cropped_image, cropped_target, (top, left), True
 
     def _maybe_small_object_crop(self, image: Image.Image, target: Dict[str, torch.Tensor]):
         if random.random() >= min(1.0, max(0.0, self.small_object_crop_prob)):
