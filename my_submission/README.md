@@ -281,3 +281,104 @@ my_submission/scripts/train_targeted_highres_a100.sh
 ```
 
 Run it in `tmux` when SSH may disconnect. Reusing the same `RUN_NAME` makes the launcher prefer `checkpoints/<run_name>/last.pth` and resume the optimizer/scheduler state.
+
+## Hugging Face Hub: upload một lần, tự tải về trước khi train
+
+Workflow này tách thành **hai repository private** để không trộn dữ liệu khóa học với checkpoint: một dataset repository chứa `indoor5-v2-student/public/...` và một model repository chứa `checkpoints/<run_name>/best.pth` hoặc `last.pth`. Hugging Face hỗ trợ upload thư mục lớn theo kiểu resumable; `snapshot_download` giữ nguyên cấu trúc file dưới `local_dir`, còn `hf_hub_download` tải từng checkpoint theo đúng đường dẫn tương đối [1] [2]. Không commit token vào repository. Trên máy upload hoặc server, đăng nhập bằng `hf auth login`, hoặc truyền token qua secret environment `HF_TOKEN`.
+
+> **Lưu ý quyền dữ liệu:** chỉ upload dataset lên repository private nếu bạn có quyền lưu trữ và đồng bộ bộ dữ liệu của môn học. Không chuyển repository sang public nếu đề bài hoặc giấy phép dữ liệu không cho phép.
+
+### Chuẩn bị xác thực
+
+```bash
+cd /path/to/Object-detection-from-scratch-
+python3 -m pip install -U "huggingface_hub[hf_xet]"
+hf auth login
+```
+
+Lệnh `hf auth login` sẽ hỏi token trong terminal và lưu xác thực cục bộ; token không nằm trong code. Nếu server dùng secret manager thay vì file login, có thể export `HF_TOKEN` trong session của server, nhưng không ghi giá trị thật vào shell script, Git, log hoặc lệnh chia sẻ công khai.
+
+### Upload dataset và baseline checkpoint
+
+Trước khi upload, đặt checkpoint đã lấy từ Modal vào đúng vị trí local:
+
+```text
+indoor5-v2-student/public/annotations/train.json
+indoor5-v2-student/public/annotations/val.json
+indoor5-v2-student/public/train/images/...
+indoor5-v2-student/public/val/images/...
+checkpoints/run_a_small_object_chair_hem_l40s/best.pth
+```
+
+Tạo hai repo private trên Hub và upload bằng script trong branch này. Thay `YOUR_HF_USER` bằng namespace Hugging Face của bạn; không thay token vào lệnh.
+
+```bash
+cd /path/to/Object-detection-from-scratch-
+python3 my_submission/scripts/hf_upload_assets.py \
+  --project-root "$PWD" \
+  --dataset-repo "YOUR_HF_USER/indoor5-v2-student-private" \
+  --dataset-dir "$PWD/indoor5-v2-student" \
+  --model-repo "YOUR_HF_USER/fcos-indoor5-checkpoints-private" \
+  --run-name "run_a_small_object_chair_hem_l40s" \
+  --upload-last
+```
+
+Script tự tạo repository ở chế độ private nếu repository chưa tồn tại. Dataset repository sẽ có `indoor5-v2-student/public/...`; model repository sẽ có `checkpoints/run_a_small_object_chair_hem_l40s/best.pth` và, khi dùng `--upload-last` và file tồn tại, `last.pth`. Nếu upload bị gián đoạn, chạy lại cùng lệnh; Hub sẽ bỏ qua phần đã có và tiếp tục file còn thiếu [1].
+
+### Server tự download trước khi chạy launcher
+
+Clone đúng branch targeted rewrite trên server, cài dependency và đăng nhập Hub bằng tài khoản có quyền đọc hai repository private:
+
+```bash
+cd /path/to/Object-detection-from-scratch-
+python3 -m pip install -r my_submission/requirements.txt
+hf auth login
+```
+
+Sau đó dùng launcher A100 hoặc V100 với `HF_AUTO_DOWNLOAD=1`. Khi dataset marker hoặc baseline checkpoint chưa tồn tại, launcher gọi `hf_sync_assets.py`; khi chúng đã tồn tại, nó không tải lại. Dataset được đặt tại `indoor5-v2-student/public/...`, còn baseline được đặt tại `checkpoints/run_a_small_object_chair_hem_l40s/best.pth`. Checkpoint tải xuống được ghi qua thư mục tạm và atomic replace để file dở dang không bị dùng cho warm-start.
+
+Ví dụ cho A100:
+
+```bash
+HF_AUTO_DOWNLOAD=1 \
+HF_DATA_REPO="YOUR_HF_USER/indoor5-v2-student-private" \
+HF_MODEL_REPO="YOUR_HF_USER/fcos-indoor5-checkpoints-private" \
+HF_BASELINE_RUN_NAME="run_a_small_object_chair_hem_l40s" \
+RUN_NAME="targeted_highres_p2p3_a100" \
+DATA_ROOT="$PWD/indoor5-v2-student" \
+BASELINE_CHECKPOINT="$PWD/checkpoints/run_a_small_object_chair_hem_l40s/best.pth" \
+my_submission/scripts/train_targeted_highres_a100.sh
+```
+
+Ví dụ cho V100:
+
+```bash
+HF_AUTO_DOWNLOAD=1 \
+HF_DATA_REPO="YOUR_HF_USER/indoor5-v2-student-private" \
+HF_MODEL_REPO="YOUR_HF_USER/fcos-indoor5-checkpoints-private" \
+HF_BASELINE_RUN_NAME="run_a_small_object_chair_hem_l40s" \
+RUN_NAME="targeted_highres_p2p3_v100" \
+DATA_ROOT="$PWD/indoor5-v2-student" \
+BASELINE_CHECKPOINT="$PWD/checkpoints/run_a_small_object_chair_hem_l40s/best.pth" \
+my_submission/scripts/train_targeted_highres_v100.sh
+```
+
+Sau lần đầu, có thể tắt `HF_AUTO_DOWNLOAD` hoặc giữ nguyên; launcher sẽ kiểm tra marker và không download lại artifact đang có. Nếu muốn buộc đồng bộ lại artifact mới, chạy trực tiếp `hf_sync_assets.py --force`; không dùng `--force` trong khi một job train đang đọc cùng checkpoint. Không xóa `last.pth` của run đang train: khi khởi động lại cùng `RUN_NAME`, launcher ưu tiên checkpoint đầy đủ này và tiếp tục optimizer/scheduler state.
+
+### Pin phiên bản artifact để tái lập
+
+Sau lần upload đầu tiên, có thể dùng commit SHA đầy đủ thay cho `main`:
+
+```bash
+HF_DATA_REVISION="FULL_DATASET_COMMIT_SHA" \
+HF_MODEL_REVISION="FULL_MODEL_COMMIT_SHA" \
+HF_AUTO_DOWNLOAD=1 \
+HF_DATA_REPO="YOUR_HF_USER/indoor5-v2-student-private" \
+HF_MODEL_REPO="YOUR_HF_USER/fcos-indoor5-checkpoints-private" \
+my_submission/scripts/train_targeted_highres_a100.sh
+```
+
+Pin revision giúp một lần train luôn lấy đúng phiên bản dataset và checkpoint đã chọn [2].
+
+[1]: https://huggingface.co/docs/huggingface_hub/en/guides/upload "Hugging Face Hub upload guide"
+[2]: https://huggingface.co/docs/huggingface_hub/en/guides/download "Hugging Face Hub download guide"

@@ -5,3 +5,4 @@ Pillow
 numpy
 tqdm
 tensorboard
+huggingface_hub[hf_xet]
