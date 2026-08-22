@@ -209,3 +209,20 @@ The output contains `overload_summary.json`, `overload_diagnostics.csv`, `all_pr
 ## Submission Checklist
 
 Submit the `my_submission/` directory without model weights. It contains `models/`, `utils/`, `train.py`, `predict.py`, `README.md`, and `requirements.txt`. The public dataset is supplied separately by the course environment. Before creating the archive, remove all `.pth` files and verify that the required train and predict commands work with the public dataset paths.
+
+## Inference-only postprocessing sweep
+
+To compare score thresholds, class-aware NMS thresholds, and per-image detection caps without retraining, run `scripts/sweep_inference_postprocess.py` on a validation prediction JSON. The input predictions must be generated for the same validation split and checkpoint; this script cannot recover boxes removed by the original detector before the JSON was written.
+
+```bash
+python3 my_submission/scripts/sweep_inference_postprocess.py \
+  --predictions ./val_predictions_sliced.json \
+  --ground-truth ./indoor5-v2-student/public/annotations/val.json \
+  --evaluator ./indoor5-v2-student/public/tools/evaluate_predictions.py \
+  --output-dir ./inference_sweep \
+  --thresholds 0.08,0.10,0.12 \
+  --nms-thresholds 0.45,0.50,0.55 \
+  --limits 30,50,70,100
+```
+
+The best configuration and all scores are saved in `inference_sweep/sweep_summary.json`. Select a configuration using validation mAP and per-class recall, not by prediction count alone. Do not use hidden-test annotations for this sweep.
