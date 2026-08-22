@@ -238,3 +238,11 @@ configs/train_targeted_highres_p2p3_l40s.json
 ```
 
 It keeps full-image training, the proven radius-2.0 assignment, small-object sampling/cropping, and sliced validation. It does not enable P1, tile training, DIoU, or quality-aware classification.
+
+## Durable Modal training when the local machine is offline
+
+The training wrapper uses a detached-compatible spawned function, `modal.Retries`, single-use retry containers, and checkpoint auto-resume. Training checkpoints are written atomically as a temporary file followed by a replace, which avoids leaving a partially written `last.pth` after interruption.
+
+For long training, start the command with `modal run --detach`. The command can remain attached while the machine is online; if the terminal or local machine disappears after the detached app has been submitted, Modal can keep the remote function alive and retry container failures. The training loop writes `last.pth` and `best.pth` to the mounted Volume, and a retry continues from `last.pth` when it exists.
+
+Always use a new `run_name` for a new experiment. Do not pass an old warm-start checkpoint when intentionally resuming an existing run directory; the wrapper detects the existing `last.pth` and switches to `--auto_resume`.

@@ -860,27 +860,28 @@ def save_checkpoint(
     args: argparse.Namespace,
     class_names: list[str],
 ) -> None:
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "scheduler": scheduler.state_dict() if scheduler is not None else None,
-            "scaler": scaler.state_dict(),
-            "epoch": epoch,
-            "best_map": best_map,
-            "global_step": global_step,
-            "args": vars(args),
-            "architecture": {
-                "backbone_name": args.backbone_name,
-                "fpn_type": args.fpn_type,
-                "bifpn_layers": args.bifpn_layers,
-                "use_p1": bool(args.use_p1),
-                "targeted_highres": bool(args.targeted_highres),
-            },
-            "class_names": class_names,
+    payload = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "scheduler": scheduler.state_dict() if scheduler is not None else None,
+        "scaler": scaler.state_dict(),
+        "epoch": epoch,
+        "best_map": best_map,
+        "global_step": global_step,
+        "args": vars(args),
+        "architecture": {
+            "backbone_name": args.backbone_name,
+            "fpn_type": args.fpn_type,
+            "bifpn_layers": args.bifpn_layers,
+            "use_p1": bool(args.use_p1),
+            "targeted_highres": bool(args.targeted_highres),
         },
-        path,
-    )
+        "class_names": class_names,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    torch.save(payload, temporary_path)
+    temporary_path.replace(path)
 
 
 @torch.no_grad()

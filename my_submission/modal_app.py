@@ -43,12 +43,17 @@ app = modal.App(APP_NAME, image=image)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
 
+TRAIN_RETRIES = modal.Retries(initial_delay=0.0, max_retries=10)
+
+
 @app.function(
     volumes={str(VOLUME_MOUNT): volume},
     cpu=8.0,
     memory=32768,
     timeout=24 * 60 * 60,
     startup_timeout=20 * 60,
+    retries=TRAIN_RETRIES,
+    single_use_containers=True,
 )
 def train_remote(
     config_path: str = DEFAULT_CONFIG,
@@ -102,12 +107,21 @@ def train_remote(
         command.append("--amp")
     if no_pretrained_backbone:
         command.append("--no_pretrained_backbone")
-    if resume_model_only:
-        command.append("--resume_model_only")
-    if resume_checkpoint_path:
-        command += ["--resume", resume_checkpoint_path]
-    elif resume_checkpoint_name:
-        command += ["--resume", str(checkpoint_dir / resume_checkpoint_name)]
+    existing_last = checkpoint_dir / "last.pth"
+    resume_existing_last = existing_last.exists() and bool(resume_checkpoint_path or resume_checkpoint_name)
+    if resume_existing_last:
+        # A retry must continue from the latest durable checkpoint, not restart
+        # from the original warm-start model. Explicit --resume takes priority
+        # inside train.py, so omit it when a run checkpoint already exists.
+        command.append("--auto_resume")
+        print(f"Found existing checkpoint {existing_last}; retry will auto-resume from it.")
+    else:
+        if resume_model_only:
+            command.append("--resume_model_only")
+        if resume_checkpoint_path:
+            command += ["--resume", resume_checkpoint_path]
+        elif resume_checkpoint_name:
+            command += ["--resume", str(checkpoint_dir / resume_checkpoint_name)]
 
     print("Running training command:")
     print(" ".join(shlex.quote(part) for part in command))
@@ -434,7 +448,7 @@ def main(
     if action == "train":
         active_run = set_active_tensorboard_run_remote.remote(run_name)
         print(f"Set TensorBoard active run to: {active_run}")
-        result = train_remote.with_options(gpu=gpu).remote(
+        train_call = train_remote.with_options(gpu=gpu).spawn(
             config_path=config_path,
             run_name=run_name,
             epochs=epochs,
@@ -448,6 +462,7 @@ def main(
             resume_checkpoint_name=resume_checkpoint_name,
             resume_checkpoint_path=resume_checkpoint_path,
         )
+        result = train_call.get()
         print(json.dumps(result, indent=2))
         print_download_commands(run_name)
         return
