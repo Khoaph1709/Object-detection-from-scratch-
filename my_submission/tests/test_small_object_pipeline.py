@@ -175,6 +175,43 @@ class SmallObjectSamplerTest(unittest.TestCase):
             self.assertAlmostEqual(float(sampler.weights[0]), 1.5, places=6)
             self.assertAlmostEqual(float(sampler.weights[1]), 1.4, places=6)
 
+    def test_mined_sampler_mix_flattens_mined_weight(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            annotation_path = root / "annotations.json"
+            annotation_path.write_text(
+                json.dumps(
+                    {
+                        "classes": ["bottle", "cup", "chair", "laptop", "backpack"],
+                        "images": [
+                            {"id": "hard.jpg", "file_name": "hard.jpg", "width": 100, "height": 100},
+                            {"id": "normal.jpg", "file_name": "normal.jpg", "width": 100, "height": 100},
+                        ],
+                        "annotations": [
+                            {"image_id": "hard.jpg", "class": "chair", "bbox": [0, 0, 80, 80]},
+                            {"image_id": "normal.jpg", "class": "laptop", "bbox": [0, 0, 80, 80]},
+                        ],
+                    }
+                )
+            )
+            mined_path = root / "mined.json"
+            mined_path.write_text(json.dumps({"image_weights": {"hard.jpg": 1.8, "normal.jpg": 1.0}}))
+            dataset = DetectionDataset(annotation_path, root)
+            args = Namespace(
+                hard_negative_sampling=True,
+                mined_sampler_weights=str(mined_path),
+                mined_sampler_mix=0.5,
+                small_object_sampling=False,
+                small_object_sampling_area_threshold=0.05,
+                small_object_image_weight=1.0,
+                empty_image_weight=1.0,
+                chair_positive_image_weight=1.0,
+                backpack_positive_image_weight=1.0,
+            )
+            sampler = build_train_sampler(dataset, args)
+            self.assertAlmostEqual(float(sampler.weights[0]), 1.4, places=6)
+            self.assertAlmostEqual(float(sampler.weights[1]), 1.0, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

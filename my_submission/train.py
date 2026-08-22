@@ -97,6 +97,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--chair_positive_image_weight", type=float, default=1.0)
     parser.add_argument("--backpack_positive_image_weight", type=float, default=1.0)
     parser.add_argument("--mined_sampler_weights", default="")
+    parser.add_argument(
+        "--mined_sampler_mix",
+        type=float,
+        default=1.0,
+        help="Blend mined image weights with 1.0: 0 disables mined emphasis, 1 preserves mined weights.",
+    )
     parser.add_argument("--small_object_sampling", action="store_true")
     parser.add_argument("--small_object_sampling_area_threshold", type=float, default=0.05)
     parser.add_argument("--small_object_image_weight", type=float, default=1.25)
@@ -587,10 +593,12 @@ def build_train_sampler(dataset, args: argparse.Namespace):
     mined_weights = read_mined_sampler_weights(args.mined_sampler_weights)
     source_indices = indices if indices is not None else list(range(len(base_dataset)))
     weights = []
+    mined_mix = max(0.0, min(1.0, float(getattr(args, "mined_sampler_mix", 1.0))))
     for source_index in source_indices:
         image_info = base_dataset.images[source_index]
         image_id = str(image_info["id"])
-        weight = float(mined_weights.get(image_id, 1.0))
+        mined_weight = float(mined_weights.get(image_id, 1.0))
+        weight = 1.0 + mined_mix * (mined_weight - 1.0)
 
         annotations = base_dataset.annotations_by_image.get(image_info["id"], [])
         labels = {annotation["class"] for annotation in annotations}
@@ -616,7 +624,10 @@ def build_train_sampler(dataset, args: argparse.Namespace):
         weights.append(max(float(weight), 1e-6))
 
     if mined_weights:
-        print(f"Using mined sampler weights from {args.mined_sampler_weights}")
+        print(
+            f"Using mined sampler weights from {args.mined_sampler_weights} "
+            f"with mix={mined_mix:.3f}"
+        )
     else:
         print(
             "Using image sampler: "
