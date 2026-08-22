@@ -189,6 +189,23 @@ python scripts/audit_annotations.py \
 
 The audit writes `summary.json`, `issues.json`, `boxes.csv`, and `review_manifest.json`. When `--image-dir` is supplied, it also renders review images under `review_images/`. The groups `chair_false_positive_high` and `backpack_false_positive_high` require train predictions; `tiny_objects`, `no_chair_or_backpack`, and `duplicate_or_overlap_suspect` are created from annotations alone. High overlap is a review signal rather than an automatic deletion rule, because legitimate occlusion can produce overlapping boxes. Do not pass hidden-test annotations or hidden-test predictions to this tool.
 
+## Overload and false-positive analysis
+
+After generating predictions on the train split, the overload analyzer ranks the images with the most retained boxes and classifies each prediction using one-to-one matching against the train ground truth. It reports true positives, same-class duplicates, class confusion, and background false positives. It does not modify annotations or predictions.
+
+Run it with train annotation, train images, and predictions generated for the same train images:
+
+```bash
+python3 my_submission/scripts/analyze_overload_images.py \
+  --annotations /path/to/indoor5-v2-student/public/annotations/train.json \
+  --predictions /path/to/train_predictions.json \
+  --image-dir /path/to/indoor5-v2-student/public/train/images \
+  --output-dir ./overload_analysis \
+  --topk 30
+```
+
+The output contains `overload_summary.json`, `overload_diagnostics.csv`, `all_prediction_diagnostics.csv`, `overload_predictions.json`, and rendered images under `overload_top30/`. The rendered colors are green for ground truth/true-positive context, orange for duplicate predictions, red for background false positives, and purple for class confusion. The duplicate/background split is a diagnostic heuristic; use it to choose between stricter NMS and hard-negative training, not to edit labels automatically. Use train data only for this analysis and never pass hidden-test labels.
+
 ## Submission Checklist
 
 Submit the `my_submission/` directory without model weights. It contains `models/`, `utils/`, `train.py`, `predict.py`, `README.md`, and `requirements.txt`. The public dataset is supplied separately by the course environment. Before creating the archive, remove all `.pth` files and verify that the required train and predict commands work with the public dataset paths.
