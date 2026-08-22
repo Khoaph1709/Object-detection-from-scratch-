@@ -164,6 +164,31 @@ python ../public/tools/evaluate_predictions.py \
 
 The evaluator checks the JSON schema, valid classes, box coordinates, IoU, precision, recall, and `mAP@0.5`. The hidden test set is evaluated by the course system and is not included in the repository.
 
+## Data-quality audit
+
+The repository includes a read-only annotation audit for the supplied train split. It checks the expected class order, missing or malformed image records, invalid or out-of-bounds boxes, boxes smaller than two pixels, duplicate same-class boxes, suspicious high-IoU boxes from different classes, object-size distributions, and image groups for manual review. It never edits the annotation JSON.
+
+Run it only against the training annotation:
+
+```bash
+python scripts/audit_annotations.py \
+  --annotations /path/to/indoor5-v2-student/public/annotations/train.json \
+  --image-dir /path/to/indoor5-v2-student/public/train/images \
+  --output-dir ./audit_train_quality
+```
+
+To rank likely chair/backpack false-positive images, optionally add predictions generated from the train split:
+
+```bash
+python scripts/audit_annotations.py \
+  --annotations /path/to/indoor5-v2-student/public/annotations/train.json \
+  --image-dir /path/to/indoor5-v2-student/public/train/images \
+  --predictions /path/to/train_predictions.json \
+  --output-dir ./audit_train_quality
+```
+
+The audit writes `summary.json`, `issues.json`, `boxes.csv`, and `review_manifest.json`. When `--image-dir` is supplied, it also renders review images under `review_images/`. The groups `chair_false_positive_high` and `backpack_false_positive_high` require train predictions; `tiny_objects`, `no_chair_or_backpack`, and `duplicate_or_overlap_suspect` are created from annotations alone. High overlap is a review signal rather than an automatic deletion rule, because legitimate occlusion can produce overlapping boxes. Do not pass hidden-test annotations or hidden-test predictions to this tool.
+
 ## Submission Checklist
 
 Submit the `my_submission/` directory without model weights. It contains `models/`, `utils/`, `train.py`, `predict.py`, `README.md`, and `requirements.txt`. The public dataset is supplied separately by the course environment. Before creating the archive, remove all `.pth` files and verify that the required train and predict commands work with the public dataset paths.
