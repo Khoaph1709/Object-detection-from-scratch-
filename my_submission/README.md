@@ -246,3 +246,38 @@ The training wrapper uses a detached-compatible spawned function, `modal.Retries
 For long training, start the command with `modal run --detach`. The command can remain attached while the machine is online; if the terminal or local machine disappears after the detached app has been submitted, Modal can keep the remote function alive and retry container failures. The training loop writes `last.pth` and `best.pth` to the mounted Volume, and a retry continues from `last.pth` when it exists.
 
 Always use a new `run_name` for a new experiment. Do not pass an old warm-start checkpoint when intentionally resuming an existing run directory; the wrapper detects the existing `last.pth` and switches to `--auto_resume`.
+
+## One-shot local V100 launcher
+
+Use `scripts/train_targeted_highres_v100.sh` for a local server with a V100. The launcher auto-detects whether the dataset is under `indoor5-v2-student/` or `indoor5-v2-student/public/`, stores outputs under `checkpoints/<run_name>`, enables AMP, tries batch sizes `2` then `1` by default, and resumes from `last.pth` after interruption.
+
+Example:
+
+```bash
+cd /path/to/Object-detection-from-scratch-
+chmod +x my_submission/scripts/train_targeted_highres_v100.sh
+RUN_NAME=targeted_highres_p2p3_v100 \
+DATA_ROOT="$PWD/indoor5-v2-student" \
+BASELINE_CHECKPOINT="$PWD/checkpoints/run_a_small_object_chair_hem_l40s/best.pth" \
+my_submission/scripts/train_targeted_highres_v100.sh
+```
+
+For a 32 GB V100, try `BATCH_CANDIDATES="4 3 2 1"`; for a 16 GB V100, keep the default `"2 1"`. Run it inside `tmux` if the SSH connection may close. On a later restart, reuse the same `RUN_NAME`; the script will prefer `checkpoints/<run_name>/last.pth` and continue the optimizer/scheduler state.
+
+## One-shot local A100 launcher
+
+Use `scripts/train_targeted_highres_a100.sh` on a local A100 server. The launcher detects the A100 with `nvidia-smi`, auto-detects the dataset under either `indoor5-v2-student/` or `indoor5-v2-student/public/`, writes to `checkpoints/<run_name>`, enables AMP, and tries batch sizes `10, 8, 6, 4, 2` until one fits. Override `BATCH_CANDIDATES` for a known 40 GB or 80 GB card.
+
+Example:
+
+```bash
+cd /path/to/Object-detection-from-scratch-
+chmod +x my_submission/scripts/train_targeted_highres_a100.sh
+RUN_NAME=targeted_highres_p2p3_a100 \
+DATA_ROOT="$PWD/indoor5-v2-student" \
+BASELINE_CHECKPOINT="$PWD/checkpoints/run_a_small_object_chair_hem_l40s/best.pth" \
+BATCH_CANDIDATES="10 8 6 4 2" \
+my_submission/scripts/train_targeted_highres_a100.sh
+```
+
+Run it in `tmux` when SSH may disconnect. Reusing the same `RUN_NAME` makes the launcher prefer `checkpoints/<run_name>/last.pth` and resume the optimizer/scheduler state.
