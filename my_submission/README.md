@@ -236,8 +236,7 @@ The recommended training configuration is:
 ```text
 configs/train_targeted_highres_p2p3_l40s.json
 ```
-
-It keeps full-image training, the proven radius-2.0 assignment, small-object sampling/cropping, and sliced validation. It does not enable P1, tile training, DIoU, or quality-aware classification.
+It runs for 15 epochs with a 15-epoch cosine schedule. Early stopping has patience 5 but is blocked until epoch 10, because the newly added high-resolution branches are identity/zero initialized and need several epochs to adapt after warm-start. It keeps full-image training, the proven radius-2.0 assignment, small-object sampling/cropping, and sliced validation. It does not enable P1, tile training, DIoU, or quality-aware classification.
 
 ## Durable Modal training when the local machine is offline
 

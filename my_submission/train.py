@@ -41,6 +41,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scheduler_epochs", type=int, default=0, help="Epoch horizon used for cosine LR; 0 uses --epochs.")
     parser.add_argument("--early_stopping_patience", type=int, default=0, help="Validation intervals without improvement before stopping; 0 disables.")
     parser.add_argument("--early_stopping_min_delta", type=float, default=0.0, help="Minimum mAP improvement counted as progress.")
+    parser.add_argument(
+        "--early_stopping_min_epochs",
+        type=int,
+        default=0,
+        help="Do not early-stop before this completed epoch; 0 disables the floor.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--num_workers", type=int, default=2)
@@ -157,6 +163,20 @@ def parse_args() -> argparse.Namespace:
         help="Resume from checkpoint_dir/last.pth when it exists.",
     )
     return apply_config_defaults(parser)
+
+
+def should_early_stop(
+    epoch: int,
+    epochs_without_improvement: int,
+    patience: int,
+    minimum_epochs: int,
+) -> bool:
+    """Return whether patience is exhausted after the warm-up floor."""
+    return (
+        patience > 0
+        and epochs_without_improvement >= patience
+        and epoch >= max(int(minimum_epochs), 0)
+    )
 
 
 def main() -> None:
@@ -555,9 +575,11 @@ def main() -> None:
                 args,
                 class_names=train_dataset.classes,
             )
-            if (
-                args.early_stopping_patience > 0
-                and epochs_without_improvement >= args.early_stopping_patience
+            if should_early_stop(
+                epoch=epoch,
+                epochs_without_improvement=epochs_without_improvement,
+                patience=args.early_stopping_patience,
+                minimum_epochs=args.early_stopping_min_epochs,
             ):
                 print(
                     f"Early stopping at epoch {epoch}: "
