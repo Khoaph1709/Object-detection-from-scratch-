@@ -12,8 +12,8 @@ RUN_NAME="${RUN_NAME:-targeted_highres_p2p3_a100}"
 RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/checkpoints/$RUN_NAME}"
 CONFIG="${CONFIG:-$PROJECT_ROOT/my_submission/configs/train_targeted_highres_p2p3_a100.json}"
 BASELINE_CHECKPOINT="${BASELINE_CHECKPOINT:-$PROJECT_ROOT/checkpoints/run_a_small_object_chair_hem_l40s/best.pth}"
-DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/indoor5-v2-student}"
-EPOCHS="${EPOCHS:-5}"
+DATA_ROOT="${DATA_ROOT:-$PROJECT_ROOT/indoor5-v2-student/public}"
+EPOCHS="${EPOCHS:-15}"
 NUM_WORKERS="${NUM_WORKERS:-12}"
 # Safe starting order for A100 40/80 GB. Override for known hardware:
 # BATCH_CANDIDATES="12 10 8 6 4 2" ./my_submission/scripts/train_targeted_highres_a100.sh
@@ -49,7 +49,10 @@ if [[ "$HF_AUTO_DOWNLOAD" == "1" ]]; then
     --model-run-name "$HF_BASELINE_RUN_NAME"
 fi
 
-if [[ -f "$DATA_ROOT/public/annotations/train.json" ]]; then
+# Canonical dataset root is indoor5-v2-student/public. Accepting the
+# parent directory remains backward-compatible, but all train paths below
+# resolve to the canonical public/ directory.
+if [[ -d "$DATA_ROOT/public" ]]; then
   DATA_ROOT="$DATA_ROOT/public"
 fi
 

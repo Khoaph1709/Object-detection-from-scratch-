@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from my_submission.scripts.hf_upload_assets import resolve_dataset_upload
 from my_submission.scripts.hf_sync_assets import (
     checkpoint_path,
     dataset_marker,
@@ -10,6 +11,31 @@ from my_submission.scripts.hf_sync_assets import (
 
 
 class HuggingFaceSyncTest(unittest.TestCase):
+    def _make_dataset(self, root: Path) -> Path:
+        public = root / "indoor5-v2-student" / "public"
+        (public / "annotations").mkdir(parents=True)
+        (public / "train" / "images").mkdir(parents=True)
+        (public / "val" / "images").mkdir(parents=True)
+        (public / "annotations" / "train.json").write_text("{}")
+        (public / "annotations" / "val.json").write_text("{}")
+        return public
+
+    def test_upload_layout_is_canonical_from_dataset_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            public = self._make_dataset(root)
+            folder, prefix = resolve_dataset_upload(public.parent)
+            self.assertEqual(folder, public)
+            self.assertEqual(prefix, "indoor5-v2-student/public")
+
+    def test_upload_layout_is_canonical_from_public_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            public = self._make_dataset(root)
+            folder, prefix = resolve_dataset_upload(public)
+            self.assertEqual(folder, public)
+            self.assertEqual(prefix, "indoor5-v2-student/public")
+
     def test_expected_project_paths(self) -> None:
         root = Path("/srv/project")
         self.assertEqual(

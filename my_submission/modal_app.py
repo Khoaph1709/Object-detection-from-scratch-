@@ -537,11 +537,11 @@ def main(
 
 def upload_dataset(local_data_dir: str) -> None:
     local_path = Path(local_data_dir).resolve()
-    public_path = local_path / "public"
+    public_path = local_path if local_path.name == "public" else local_path / "public"
     if not public_path.is_dir():
         raise FileNotFoundError(
-            f"Expected dataset directory not found: {public_path}. "
-            "Pass the folder containing public/ as --local-data-dir."
+            f"Expected dataset public/ directory not found: {public_path}. "
+            "Pass either indoor5-v2-student/ or indoor5-v2-student/public/."
         )
     required = [
         public_path / "annotations" / "train.json",
