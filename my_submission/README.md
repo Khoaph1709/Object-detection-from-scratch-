@@ -226,3 +226,15 @@ python3 my_submission/scripts/sweep_inference_postprocess.py \
 ```
 
 The best configuration and all scores are saved in `inference_sweep/sweep_summary.json`. Select a configuration using validation mAP and per-class recall, not by prediction count alone. Do not use hidden-test annotations for this sweep.
+
+## Targeted high-resolution P2/P3 rewrite
+
+The `targeted_highres` architecture keeps the ConvNeXt + FCOS detector and adds a gated P2/P3 refinement neck plus a zero-initialized small-object residual head. The new branches are initialized close to identity so a baseline checkpoint can be warm-started safely. P1 is mutually exclusive with this branch.
+
+The recommended training configuration is:
+
+```text
+configs/train_targeted_highres_p2p3_l40s.json
+```
+
+It keeps full-image training, the proven radius-2.0 assignment, small-object sampling/cropping, and sliced validation. It does not enable P1, tile training, DIoU, or quality-aware classification.

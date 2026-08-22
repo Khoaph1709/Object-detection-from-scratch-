@@ -137,6 +137,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fpn_type", choices=["fpn", "bifpn"], default="fpn")
     parser.add_argument("--bifpn_layers", type=int, default=1)
     parser.add_argument("--use_p1", action="store_true", help="Add optional stride-2 refined P1 small-object branch.")
+    parser.add_argument(
+        "--targeted_highres",
+        action="store_true",
+        help="Enable gated P2/P3 high-resolution refinement and small-object residual head.",
+    )
     parser.add_argument("--tile_val_inference", action="store_true", help="Evaluate validation through sliced tiles.")
     parser.add_argument("--tile_val_size", type=int, default=640)
     parser.add_argument("--tile_val_overlap", type=float, default=0.20)
@@ -233,6 +238,7 @@ def main() -> None:
         fpn_type=args.fpn_type,
         bifpn_layers=args.bifpn_layers,
         use_p1=args.use_p1,
+        targeted_highres=args.targeted_highres,
     ).to(device)
     assigner = FCOSTargetAssigner(
         model.strides,
@@ -284,14 +290,17 @@ def main() -> None:
             "fpn_type": checkpoint_args.get("fpn_type", "fpn"),
             "bifpn_layers": int(checkpoint_args.get("bifpn_layers", 1)),
             "use_p1": bool(checkpoint_args.get("use_p1", False)),
+            "targeted_highres": bool(checkpoint_args.get("targeted_highres", False)),
         }
         checkpoint_architecture = dict(checkpoint_architecture)
         checkpoint_architecture.setdefault("use_p1", False)
+        checkpoint_architecture.setdefault("targeted_highres", False)
         expected_architecture = {
             "backbone_name": args.backbone_name,
             "fpn_type": args.fpn_type,
             "bifpn_layers": args.bifpn_layers,
             "use_p1": bool(args.use_p1),
+            "targeted_highres": bool(args.targeted_highres),
         }
         architecture_mismatch = checkpoint_architecture != expected_architecture
         p1_warm_start = (
@@ -303,24 +312,41 @@ def main() -> None:
                 for key in ("backbone_name", "fpn_type", "bifpn_layers")
             )
         )
-        if architecture_mismatch and not p1_warm_start:
+        targeted_warm_start = (
+            args.resume_model_only
+            and not checkpoint_architecture.get("targeted_highres", False)
+            and expected_architecture.get("targeted_highres", False)
+            and not expected_architecture.get("use_p1", False)
+            and all(
+                checkpoint_architecture.get(key) == expected_architecture.get(key)
+                for key in ("backbone_name", "fpn_type", "bifpn_layers")
+            )
+        )
+        if architecture_mismatch and not p1_warm_start and not targeted_warm_start:
             raise ValueError(
                 "Resume checkpoint architecture does not match the current configuration. "
                 f"checkpoint={checkpoint_architecture}, current={expected_architecture}"
             )
-        if p1_warm_start:
+        if p1_warm_start or targeted_warm_start:
             missing, unexpected = model.load_state_dict(checkpoint["model"], strict=False)
-            bad_missing = [
-                key
-                for key in missing
-                if not (key.startswith("p1_refinement.") or key.startswith("p1_head."))
-            ]
+            allowed_prefixes = (
+                ("p1_refinement.", "p1_head.")
+                if p1_warm_start
+                else ("highres_neck.", "small_object_head.")
+            )
+            bad_missing = [key for key in missing if not key.startswith(allowed_prefixes)]
             if unexpected or bad_missing:
                 raise RuntimeError(
-                    "Unsafe P1 warm-start state dict mismatch: "
+                    "Unsafe warm-start state dict mismatch: "
                     f"missing={bad_missing}, unexpected={unexpected}"
                 )
-            print("Warm-started P1 branch from baseline; only P1 refinement/head weights are newly initialized.")
+            if targeted_warm_start:
+                print(
+                    "Warm-started targeted high-resolution branch from baseline; "
+                    "highres neck and small-object residual head are newly initialized."
+                )
+            else:
+                print("Warm-started P1 branch from baseline; only P1 refinement/head weights are newly initialized.")
         else:
             model.load_state_dict(checkpoint["model"])
         if not args.resume_model_only and "optimizer" in checkpoint:
@@ -670,6 +696,8 @@ def build_optimizer(model, args: argparse.Namespace):
             {"params": model.head.parameters(), "lr": head_lr},
             *([{"params": model.p1_refinement.parameters(), "lr": head_lr}] if getattr(model, "p1_refinement", None) is not None else []),
             *([{"params": model.p1_head.parameters(), "lr": head_lr}] if getattr(model, "p1_head", None) is not None else []),
+            *([{"params": model.highres_neck.parameters(), "lr": head_lr}] if getattr(model, "highres_neck", None) is not None else []),
+            *([{"params": model.small_object_head.parameters(), "lr": head_lr}] if getattr(model, "small_object_head", None) is not None else []),
         ],
         lr=args.lr,
         weight_decay=args.weight_decay,
@@ -847,6 +875,7 @@ def save_checkpoint(
                 "fpn_type": args.fpn_type,
                 "bifpn_layers": args.bifpn_layers,
                 "use_p1": bool(args.use_p1),
+                "targeted_highres": bool(args.targeted_highres),
             },
             "class_names": class_names,
         },

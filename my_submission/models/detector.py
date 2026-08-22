@@ -7,6 +7,7 @@ from .bifpn import BiFPN
 from .fpn import FPN
 from .head import FCOSHead
 from .highres import P1Refinement
+from .targeted_highres import SmallObjectResidualHead, TargetedHighResNeck
 
 
 class FCOSDetector(nn.Module):
@@ -19,6 +20,7 @@ class FCOSDetector(nn.Module):
         fpn_type: str = "fpn",
         bifpn_layers: int = 1,
         use_p1: bool = False,
+        targeted_highres: bool = False,
     ) -> None:
         super().__init__()
         if fpn_type not in {"fpn", "bifpn"}:
@@ -28,6 +30,9 @@ class FCOSDetector(nn.Module):
         self.fpn_type = fpn_type
         self.bifpn_layers = bifpn_layers
         self.use_p1 = bool(use_p1)
+        self.targeted_highres = bool(targeted_highres)
+        if self.use_p1 and self.targeted_highres:
+            raise ValueError("use_p1 and targeted_highres are mutually exclusive")
         self.backbone = ConvNeXtBackbone(model_name=backbone_name, pretrained=pretrained_backbone)
         if fpn_type == "bifpn":
             self.fpn = BiFPN(
@@ -39,6 +44,12 @@ class FCOSDetector(nn.Module):
             self.fpn = FPN(in_channels=self.backbone.out_channels, out_channels=fpn_channels)
         self.p1_refinement = P1Refinement(fpn_channels) if self.use_p1 else None
         self.p1_head = FCOSHead(in_channels=fpn_channels, num_classes=num_classes, num_convs=2) if self.use_p1 else None
+        self.highres_neck = TargetedHighResNeck(fpn_channels) if self.targeted_highres else None
+        self.small_object_head = (
+            SmallObjectResidualHead(fpn_channels, num_classes=num_classes, num_convs=2)
+            if self.targeted_highres
+            else None
+        )
         self.head = FCOSHead(in_channels=fpn_channels, num_classes=num_classes)
         self.strides = {"p2": 4, "p3": 8, "p4": 16, "p5": 32, "p6": 64, "p7": 128}
         if self.use_p1:
@@ -47,6 +58,8 @@ class FCOSDetector(nn.Module):
     def forward(self, images: torch.Tensor) -> dict:
         c_features = self.backbone(images)
         p_features = self.fpn(c_features)
+        if self.targeted_highres:
+            p_features = self.highres_neck(p_features)
         if self.use_p1:
             p_features = {"p1": self.p1_refinement(p_features["p2"]), **p_features}
             p1_outputs = self.p1_head(OrderedDict((("p1", p_features["p1"]),)))
@@ -58,6 +71,15 @@ class FCOSDetector(nn.Module):
             }
         else:
             head_outputs = self.head(p_features)
+            if self.targeted_highres:
+                small_features = OrderedDict((level, p_features[level]) for level in ("p2", "p3"))
+                residual_outputs = self.small_object_head(small_features)
+                head_outputs = {
+                    key: OrderedDict(head_outputs[key]) for key in ("cls_logits", "bbox_regression", "centerness")
+                }
+                for key in ("cls_logits", "bbox_regression", "centerness"):
+                    for level in ("p2", "p3"):
+                        head_outputs[key][level] = head_outputs[key][level] + residual_outputs[key][level]
         return {
             "features": p_features,
             **head_outputs,
@@ -71,6 +93,7 @@ def build_detector(
     fpn_type: str = "fpn",
     bifpn_layers: int = 1,
     use_p1: bool = False,
+    targeted_highres: bool = False,
 ) -> FCOSDetector:
     return FCOSDetector(
         num_classes=num_classes,
@@ -79,4 +102,5 @@ def build_detector(
         fpn_type=fpn_type,
         bifpn_layers=bifpn_layers,
         use_p1=use_p1,
+        targeted_highres=targeted_highres,
     )
