@@ -1,6 +1,6 @@
 import unittest
 
-from my_submission.train import should_early_stop
+from my_submission.train import should_early_stop, update_early_stopping_counter
 
 
 class EarlyStoppingPolicyTest(unittest.TestCase):
@@ -12,6 +12,26 @@ class EarlyStoppingPolicyTest(unittest.TestCase):
                 patience=5,
                 minimum_epochs=10,
             )
+        )
+
+    def test_stale_counter_does_not_accumulate_before_minimum_epoch(self) -> None:
+        self.assertEqual(
+            update_early_stopping_counter(
+                improved=False,
+                epoch=9,
+                previous_count=4,
+                minimum_epochs=10,
+            ),
+            0,
+        )
+        self.assertEqual(
+            update_early_stopping_counter(
+                improved=False,
+                epoch=10,
+                previous_count=0,
+                minimum_epochs=10,
+            ),
+            1,
         )
 
     def test_patience_can_stop_after_minimum_epoch(self) -> None:

@@ -165,6 +165,18 @@ def parse_args() -> argparse.Namespace:
     return apply_config_defaults(parser)
 
 
+def update_early_stopping_counter(
+    improved: bool,
+    epoch: int,
+    previous_count: int,
+    minimum_epochs: int,
+) -> int:
+    """Count stale validation intervals only after the warm-up floor."""
+    if improved or epoch < max(int(minimum_epochs), 0):
+        return 0
+    return previous_count + 1
+
+
 def should_early_stop(
     epoch: int,
     epochs_without_improvement: int,
@@ -558,10 +570,15 @@ def main() -> None:
                 )
                 print(f"Saved new best checkpoint with mAP@0.5={best_map:.6f}")
             else:
-                epochs_without_improvement += 1
+                epochs_without_improvement = update_early_stopping_counter(
+                    improved=False,
+                    epoch=epoch,
+                    previous_count=epochs_without_improvement,
+                    minimum_epochs=args.early_stopping_min_epochs,
+                )
                 print(
                     f"No validation improvement for {epochs_without_improvement} "
-                    f"validation interval(s); best mAP@0.5={best_map:.6f}"
+                    f"post-warm-up validation interval(s); best mAP@0.5={best_map:.6f}"
                 )
             save_checkpoint(
                 checkpoint_dir / "last.pth",
