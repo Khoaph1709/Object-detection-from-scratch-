@@ -384,23 +384,23 @@ Pin revision giúp một lần train luôn lấy đúng phiên bản dataset và
 
 ## Final train+validation fine-tune and exam grading
 
-After the model and hyperparameters are frozen, an optional final fine-tune can use the labeled train and validation images together. This is not an independent validation run; keep the previously selected checkpoint as a backup. The merge script preserves `train/images/...` and `val/images/...` in the merged JSON and uses `indoor5-v2-student/public/` as the common image root.
+After the model and hyperparameters are frozen, an optional final fine-tune can use the labeled train and validation images together. In this project, the frozen model is the **HEM checkpoint** `run_a_small_object_chair_hem_l40s/best.pth`, not the experimental targeted P2/P3 rewrite. The final config therefore keeps ConvNeXt-Small + BiFPN, P2 assignment, radius 2.0, HEM sampler/crop settings, and `targeted_highres=false`. This is not an independent validation run; keep the selected HEM checkpoint as a backup. The merge script preserves `train/images/...` and `val/images/...` in the merged JSON and uses `indoor5-v2-student/public/` as the common image root.
 
 On Modal L40S, first create the merged annotation inside the existing Volume:
 
 ```bash
-modal run --detach my_submission/modal_app.py \
+modal run my_submission/modal_app.py \
   --action merge_train_val
 ```
 
-Then launch the final two-epoch fine-tune. Replace the resume path only if a different final checkpoint was selected:
+Then launch the final two-epoch **HEM** fine-tune:
 
 ```bash
 modal run --detach my_submission/modal_app.py \
   --action train \
   --gpu L40S \
-  --run-name run_final_trainval_finetune_l40s \
-  --config-path /root/project/my_submission/configs/train_final_trainval_finetune_l40s.json \
+  --run-name run_final_trainval_finetune_hem_l40s \
+  --config-path /root/project/my_submission/configs/train_final_trainval_finetune_hem_l40s.json \
   --epochs 2 \
   --batch-size 6 \
   --amp \
@@ -412,13 +412,13 @@ modal run --detach my_submission/modal_app.py \
   --val-image-dir-name .
 ```
 
-The final fine-tune intentionally does not use the merged set as an independent validation set. It saves the final state at `/data/checkpoints/run_final_trainval_finetune_l40s/last.pth`. Download that file, then prepare the grading checkpoint without committing the `.pth` file:
+The final fine-tune intentionally does not use the merged set as an independent validation set. It saves the final state at `/data/checkpoints/run_final_trainval_finetune_hem_l40s/last.pth`. Download that file, then prepare the grading checkpoint without committing the `.pth` file:
 
 ```bash
 modal volume get xla-fcos-volume \
-  /checkpoints/run_final_trainval_finetune_l40s/last.pth \
-  ./final_trainval_last.pth
-bash my_submission/scripts/prepare_exam_submission.sh ./final_trainval_last.pth
+  /checkpoints/run_final_trainval_finetune_hem_l40s/last.pth \
+  ./final_trainval_hem_last.pth
+bash my_submission/scripts/prepare_exam_submission.sh ./final_trainval_hem_last.pth
 ```
 
 The instructor README defines the Docker contract. Build the instructor image from the directory containing its Dockerfile, then run predictions with only the read-only test image mount. Never mount hidden annotations into the submission container:
