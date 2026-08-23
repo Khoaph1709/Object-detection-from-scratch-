@@ -1,6 +1,6 @@
 {
   "image_dir": "/data/indoor5-v2-student/public/val/images",
-  "output": "/data/checkpoints/run_a_small_object_sliced/val_predictions_sliced.json",
+  "output": "/data/checkpoints/hem_predictions/val_predictions_sliced.json",
   "checkpoint": "/data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth",
   "short_size": 704,
   "max_size": 1056,

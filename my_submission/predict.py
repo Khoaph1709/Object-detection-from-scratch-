@@ -94,8 +94,6 @@ def main() -> None:
         backbone_name=checkpoint_args.get("backbone_name", "convnext_tiny"),
         fpn_type=checkpoint_args.get("fpn_type", "fpn"),
         bifpn_layers=int(checkpoint_args.get("bifpn_layers", 1)),
-        use_p1=bool(checkpoint_args.get("use_p1", False)),
-        targeted_highres=bool(checkpoint_args.get("targeted_highres", False)),
     ).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()

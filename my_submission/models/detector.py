@@ -1,16 +1,23 @@
-import torch
-from torch import nn
+from __future__ import annotations
+
 from collections import OrderedDict
+
+from torch import nn
 
 from .backbone import ConvNeXtBackbone
 from .bifpn import BiFPN
 from .fpn import FPN
 from .head import FCOSHead
-from .highres import P1Refinement
-from .targeted_highres import SmallObjectResidualHead, TargetedHighResNeck
 
 
 class FCOSDetector(nn.Module):
+    """Custom anchor-free FCOS detector used by the final HEM pipeline.
+
+    The final submission uses P2-P7 features, a ConvNeXt backbone, BiFPN and a
+    custom FCOS head. The legacy P1 and targeted high-resolution experiment
+    switches are rejected so a stale experiment cannot be trained accidentally.
+    """
+
     def __init__(
         self,
         num_classes: int = 5,
@@ -23,16 +30,18 @@ class FCOSDetector(nn.Module):
         targeted_highres: bool = False,
     ) -> None:
         super().__init__()
+        if use_p1 or targeted_highres:
+            raise ValueError(
+                "This cleaned submission is HEM-only; P1 and targeted_highres are disabled."
+            )
         if fpn_type not in {"fpn", "bifpn"}:
             raise ValueError(f"Unsupported pyramid type: {fpn_type}")
 
         self.backbone_name = backbone_name
         self.fpn_type = fpn_type
         self.bifpn_layers = bifpn_layers
-        self.use_p1 = bool(use_p1)
-        self.targeted_highres = bool(targeted_highres)
-        if self.use_p1 and self.targeted_highres:
-            raise ValueError("use_p1 and targeted_highres are mutually exclusive")
+        self.use_p1 = False
+        self.targeted_highres = False
         self.backbone = ConvNeXtBackbone(model_name=backbone_name, pretrained=pretrained_backbone)
         if fpn_type == "bifpn":
             self.fpn = BiFPN(
@@ -42,48 +51,12 @@ class FCOSDetector(nn.Module):
             )
         else:
             self.fpn = FPN(in_channels=self.backbone.out_channels, out_channels=fpn_channels)
-        self.p1_refinement = P1Refinement(fpn_channels) if self.use_p1 else None
-        self.p1_head = FCOSHead(in_channels=fpn_channels, num_classes=num_classes, num_convs=2) if self.use_p1 else None
-        self.highres_neck = TargetedHighResNeck(fpn_channels) if self.targeted_highres else None
-        self.small_object_head = (
-            SmallObjectResidualHead(fpn_channels, num_classes=num_classes, num_convs=2)
-            if self.targeted_highres
-            else None
-        )
         self.head = FCOSHead(in_channels=fpn_channels, num_classes=num_classes)
         self.strides = {"p2": 4, "p3": 8, "p4": 16, "p5": 32, "p6": 64, "p7": 128}
-        if self.use_p1:
-            self.strides = {"p1": 2, **self.strides}
 
-    def forward(self, images: torch.Tensor) -> dict:
-        c_features = self.backbone(images)
-        p_features = self.fpn(c_features)
-        if self.targeted_highres:
-            p_features = self.highres_neck(p_features)
-        if self.use_p1:
-            p_features = {"p1": self.p1_refinement(p_features["p2"]), **p_features}
-            p1_outputs = self.p1_head(OrderedDict((("p1", p_features["p1"]),)))
-            base_features = OrderedDict((level, value) for level, value in p_features.items() if level != "p1")
-            base_outputs = self.head(base_features)
-            head_outputs = {
-                key: OrderedDict((level, value) for level, value in (("p1", p1_outputs[key]["p1"]), *base_outputs[key].items()))
-                for key in ("cls_logits", "bbox_regression", "centerness")
-            }
-        else:
-            head_outputs = self.head(p_features)
-            if self.targeted_highres:
-                small_features = OrderedDict((level, p_features[level]) for level in ("p2", "p3"))
-                residual_outputs = self.small_object_head(small_features)
-                head_outputs = {
-                    key: OrderedDict(head_outputs[key]) for key in ("cls_logits", "bbox_regression", "centerness")
-                }
-                for key in ("cls_logits", "bbox_regression", "centerness"):
-                    for level in ("p2", "p3"):
-                        head_outputs[key][level] = head_outputs[key][level] + residual_outputs[key][level]
-        return {
-            "features": p_features,
-            **head_outputs,
-        }
+    def forward(self, images):
+        features = self.fpn(self.backbone(images))
+        return {"features": features, **self.head(features)}
 
 
 def build_detector(

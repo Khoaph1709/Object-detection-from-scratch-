@@ -15,11 +15,11 @@ VOLUME_NAME = "xla-fcos-volume"
 VOLUME_MOUNT = Path("/data")
 REMOTE_PROJECT = Path("/root/project")
 REMOTE_SUBMISSION = REMOTE_PROJECT / "my_submission"
-DEFAULT_RUN_NAME = "fcos_modal_small_objects_l40s"
-DEFAULT_TENSORBOARD_RUN_NAME = "fcos_modal_small_objects_l40s"
+DEFAULT_RUN_NAME = "run_hem_l40s"
+DEFAULT_TENSORBOARD_RUN_NAME = "run_hem_l40s"
 TENSORBOARD_ACTIVE_RUN_FILE = VOLUME_MOUNT / "checkpoints" / ".tensorboard_active_run.txt"
-DEFAULT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "train_modal_small_objects_l40s.json")
-DEFAULT_PREDICT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "predict_val.json")
+DEFAULT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "train_hem_l40s.json")
+DEFAULT_PREDICT_CONFIG = str(REMOTE_SUBMISSION / "configs" / "predict_hem_l40s.json")
 
 LOCAL_ROOT = Path(__file__).resolve().parents[1]
 
@@ -317,105 +317,6 @@ def predict_remote(
     }
 
 
-@app.function(
-    volumes={str(VOLUME_MOUNT): volume},
-    cpu=4.0,
-    memory=8192,
-    timeout=60 * 60,
-)
-def mine_hard_examples_remote(
-    run_name: str = DEFAULT_RUN_NAME,
-    predictions_name: str = "train_predictions_consensus.json",
-    output_name: str = "combined_hard_example_weights.json",
-    classes: str = "chair,backpack",
-    class_score_thresholds: str = "chair=0.20,backpack=0.20",
-    topk: int = 0,
-) -> dict:
-    checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
-    predictions_path = checkpoint_dir / predictions_name
-    output_path = checkpoint_dir / output_name
-    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
-    require_path(predictions_path)
-    require_path(data_root / "annotations" / "train.json")
-
-    command = [
-        sys.executable,
-        str(REMOTE_SUBMISSION / "scripts" / "mine_hard_examples.py"),
-        "--classes",
-        classes,
-        "--class_score_thresholds",
-        class_score_thresholds,
-        "--topk",
-        str(topk),
-        "--ground_truth",
-        str(data_root / "annotations" / "train.json"),
-        "--predictions",
-        str(predictions_path),
-        "--output",
-        str(output_path),
-    ]
-    print("Running hard-example mining command:")
-    print(" ".join(shlex.quote(part) for part in command))
-    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
-    summary = json.loads(output_path.read_text(encoding="utf-8")).get("summary", {})
-    volume.commit()
-    return {"weights": str(output_path), "summary": summary}
-
-
-@app.function(
-    volumes={str(VOLUME_MOUNT): volume},
-    cpu=4.0,
-    memory=8192,
-    timeout=3 * 60 * 60,
-)
-def tune_val_remote(
-    run_name: str = DEFAULT_RUN_NAME,
-    predictions_name: str = "val_predictions_tta.json",
-    output_name: str = "threshold_tuning.json",
-    thresholds: str = "",
-    limits: str = "",
-    class_thresholds: str = "",
-    class_limits: str = "",
-) -> dict:
-    checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
-    predictions_path = checkpoint_dir / predictions_name
-    output_path = checkpoint_dir / output_name
-    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
-    evaluator = data_root / "tools" / "evaluate_predictions.py"
-    require_path(predictions_path)
-    require_path(data_root / "annotations" / "val.json")
-    require_path(evaluator)
-
-    command = [
-        sys.executable,
-        str(REMOTE_SUBMISSION / "scripts" / "tune_predictions.py"),
-        "--predictions",
-        str(predictions_path),
-        "--ground_truth",
-        str(data_root / "annotations" / "val.json"),
-        "--evaluator",
-        str(evaluator),
-        "--output",
-        str(output_path),
-    ]
-    if thresholds:
-        command += ["--thresholds", thresholds]
-    if limits:
-        command += ["--limits", limits]
-    if class_thresholds:
-        command += ["--class_thresholds", class_thresholds]
-    if class_limits:
-        command += ["--class_limits", class_limits]
-    print("Running validation tuning command:")
-    print(" ".join(shlex.quote(part) for part in command))
-    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
-    volume.commit()
-    return {
-        "run_name": run_name,
-        "tuning_results": str(output_path),
-        "best": json.loads(output_path.read_text(encoding="utf-8")).get("best"),
-    }
-
 
 @app.function(volumes={str(VOLUME_MOUNT): volume}, timeout=2 * 60)
 def set_active_tensorboard_run_remote(run_name: str) -> str:
@@ -464,16 +365,6 @@ def main(
     remote_image_dir: str = "/data/indoor5-v2-student/public/val/images",
     checkpoint_name: str = "best.pth",
     output_name: str = "predictions.json",
-    predictions_name: str = "val_predictions_tta.json",
-    tune_output_name: str = "threshold_tuning.json",
-    tune_thresholds: str = "",
-    tune_limits: str = "",
-    tune_class_thresholds: str = "",
-    tune_class_limits: str = "",
-    mining_classes: str = "chair,backpack",
-    mining_class_score_thresholds: str = "chair=0.20,backpack=0.20",
-    mining_topk: int = 0,
-    mining_output_name: str = "combined_hard_example_weights.json",
     epochs: int = 0,
     batch_size: int = 0,
     val_interval: int = 0,
@@ -527,20 +418,6 @@ def main(
         print(json.dumps(result, indent=2))
         print_download_commands(run_name)
         return
-    if action == "tune_val":
-        active_run = set_active_tensorboard_run_remote.remote(run_name)
-        print(f"Set TensorBoard active run to: {active_run}")
-        result = tune_val_remote.remote(
-            run_name=run_name,
-            predictions_name=predictions_name,
-            output_name=tune_output_name,
-            thresholds=tune_thresholds,
-            limits=tune_limits,
-            class_thresholds=tune_class_thresholds,
-            class_limits=tune_class_limits,
-        )
-        print(json.dumps(result, indent=2))
-        return
     if action == "pack":
         active_run = set_active_tensorboard_run_remote.remote(run_name)
         print(f"Set TensorBoard active run to: {active_run}")
@@ -575,19 +452,6 @@ def main(
         )
         print(json.dumps(result, indent=2))
         print(f"Download with: modal volume get {VOLUME_NAME} /checkpoints/{run_name}/{output_name} .")
-        return
-    if action == "mine_hard_examples":
-        active_run = set_active_tensorboard_run_remote.remote(run_name)
-        print(f"Set TensorBoard active run to: {active_run}")
-        result = mine_hard_examples_remote.remote(
-            run_name=run_name,
-            predictions_name=predictions_name,
-            output_name=mining_output_name,
-            classes=mining_classes,
-            class_score_thresholds=mining_class_score_thresholds,
-            topk=mining_topk,
-        )
-        print(json.dumps(result, indent=2))
         return
     if action == "commands":
         print_download_commands(run_name)
