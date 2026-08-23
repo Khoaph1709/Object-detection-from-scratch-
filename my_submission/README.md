@@ -1,135 +1,77 @@
-# Indoor5 Object Detection — HEM Final Submission
+# Indoor5 Object Detection
 
-## 1. Mục tiêu và phạm vi
+## Overview
 
-Đây là bài nộp cho bài toán phát hiện năm lớp đối tượng trong ảnh tự nhiên:
+This project implements a custom object detector for the Indoor5 dataset. The detector recognizes five classes:
 
 ```text
 bottle, cup, chair, laptop, backpack
 ```
 
-Pipeline cuối cùng được chốt là **custom anchor-free FCOS với HEM (hard-example mining)**. Mô hình sử dụng ConvNeXt-Small làm backbone trích xuất đặc trưng, BiFPN một tầng để kết hợp đặc trưng đa tỉ lệ, các mức P2–P7 để giữ thông tin đối tượng nhỏ, và FCOS head tự cài đặt để dự đoán phân lớp, khoảng cách tới bounding box và centerness.
+The final pipeline is an **anchor-free FCOS detector with hard-example mining (HEM)**. It is designed for images containing many small objects and follows the course requirement to implement the main detection pipeline independently.
 
-Mã nguồn không sử dụng YOLOv5/YOLOv8, Detectron2, MMDetection, Faster R-CNN hoặc SSD có sẵn. Các thành phần chính gồm data loader, augmentation, FCOS assignment, GIoU loss, focal classification loss, centerness loss, decoding, per-class NMS và chuyển bounding box về tọa độ ảnh gốc.
+## From-Scratch Requirement
 
-## 2. Cấu trúc dữ liệu bắt buộc
+The project does not use a complete detector implementation such as YOLOv5/YOLOv8, Detectron2, MMDetection, Faster R-CNN, or torchvision SSD. PyTorch and standard neural-network operators are used to implement the model, training procedure, losses, decoding, confidence filtering, and non-maximum suppression.
 
-Trong môi trường chạy, thư mục dữ liệu phải có dạng:
+A pretrained feature extractor is used as permitted by the assignment. The detection architecture itself is custom.
+
+## Final Architecture
+
+```text
+Input image
+    ↓
+Resize, normalization and training augmentation
+    ↓
+ConvNeXt-Small backbone
+    ↓
+BiFPN feature pyramid
+    ↓
+P2–P7 feature levels
+    ↓
+Custom FCOS prediction head
+    ├── Classification
+    ├── Bounding-box regression
+    └── Centerness
+    ↓
+Decode, confidence filtering and per-class NMS
+    ↓
+Bounding boxes in original-image coordinates
+```
+
+The final model uses a P2-aware feature pyramid, center-based assignment with radius `2.0`, controlled small-object sampling/cropping, and HEM-oriented image sampling. The regression loss is GIoU, classification uses focal loss, and the centerness branch provides objectness quality.
+
+## Data Pipeline
+
+The expected dataset layout is:
 
 ```text
 public/
-├── classes.json
 ├── annotations/
 │   ├── train.json
 │   └── val.json
-├── train/
-│   └── images/
-├── val/
-│   └── images/
-└── tools/
-    └── evaluate_predictions.py
-```
-
-Trong repository phát triển local, layout tương ứng là:
-
-```text
-indoor5-v2-student/public/
-├── annotations/train.json
-├── annotations/val.json
 ├── train/images/
-└── val/images/
+├── val/images/
+└── tools/evaluate_predictions.py
 ```
 
-Annotation sử dụng format:
-
-```json
-{
-  "classes": ["bottle", "cup", "chair", "laptop", "backpack"],
-  "images": [
-    {
-      "id": "img_example.jpg",
-      "file_name": "train/images/img_example.jpg",
-      "width": 640,
-      "height": 480
-    }
-  ],
-  "annotations": [
-    {
-      "image_id": "img_example.jpg",
-      "class": "chair",
-      "bbox": [48, 72, 210, 356]
-    }
-  ]
-}
-```
-
-Bounding box luôn có dạng `[xmin, ymin, xmax, ymax]` và được tính theo pixel của ảnh gốc. Class order phải đúng chính xác: `bottle`, `cup`, `chair`, `laptop`, `backpack`.
-
-## 3. Các file chính trong submission
+The data loader supports multiple objects per image and the required bounding-box format:
 
 ```text
-my_submission/
-├── models/
-│   └── best.pth                 # không commit; tự tải qua GitHub Release nếu cần
-├── utils/
-│   ├── assigner.py              # FCOS center/range assignment
-│   ├── augmentations.py         # resize, normalize, flip, small-object crop
-│   ├── box_ops.py               # IoU, GIoU và box operations
-│   ├── checkpoint.py             # tải checkpoint qua URL và kiểm tra SHA256
-│   ├── classes.py
-│   ├── config.py
-│   ├── dataset.py                # Dataset và batch collation
-│   ├── locations.py
-│   ├── losses.py                 # focal, GIoU và centerness losses
-│   ├── postprocess.py            # decode và per-class NMS
-│   └── tiling.py                 # sliced inference tùy chọn
-├── models/
-│   ├── backbone.py               # ConvNeXt backbone
-│   ├── bifpn.py                  # BiFPN
-│   ├── detector.py               # HEM-only FCOS detector
-│   ├── fpn.py
-│   └── head.py
-├── scripts/
-│   ├── hf_upload_assets.py       # upload private dataset/checkpoint
-│   ├── hf_sync_assets.py         # tự tải artifact từ Hugging Face
-│   ├── merge_train_val_annotations.py
-│   ├── prepare_exam_submission.sh
-│   ├── run_exam_docker.sh
-│   └── upload_checkpoint_release.sh
-├── configs/
-│   ├── train_hem_l40s.json
-│   ├── predict_hem_l40s.json
-│   └── train_final_trainval_finetune_hem_l40s.json
-├── train.py
-├── predict.py
-├── modal_app.py
-├── requirements.txt
-└── README.md
+[xmin, ymin, xmax, ymax]
 ```
 
-Các config và script cho P1, targeted P2/P3, DIoU, quality-aware classification, WBF, overload mining, threshold sweep và các ablation không còn được giữ trong bản HEM-only này để tránh chạy nhầm mô hình.
+Training includes image resizing, normalization, horizontal flipping, color variation, and controlled crops for small objects. Bounding boxes are transformed together with their corresponding images.
 
-## 4. Cài đặt môi trường
+## Training
 
-Trong thư mục `my_submission`, cài các dependency:
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-Nếu chỉ chạy theo Docker grading, giảng viên cung cấp image với dependency cố định; `requirements.txt` là tài liệu môi trường phát triển và không thay thế instructor image.
-
-## 5. Huấn luyện HEM
-
-Config chính thức của HEM là:
+From the `my_submission` directory, the main HEM configuration is:
 
 ```text
 configs/train_hem_l40s.json
 ```
 
-Các thiết lập quan trọng đã được chốt từ thí nghiệm trước gồm ConvNeXt-Small, BiFPN, P2–P7, center sampling radius 2.0, P2/P3 range overlap 8.0, small-object image sampling/crop, chair hard-example mining và full-image training.
-
-Lệnh chạy local từ thư mục `my_submission`:
+Run training with:
 
 ```bash
 python train.py \
@@ -143,295 +85,80 @@ python train.py \
   --amp
 ```
 
-Lệnh train phải tạo:
+Training writes checkpoints to the selected checkpoint directory, including `best.pth` and `last.pth`.
 
-```text
-models/hem_run/best.pth
-models/hem_run/last.pth
-```
+## Inference
 
-Không commit các file `.pth` vào bài nộp. Checkpoint được dùng khi grading phải được đặt ở `models/best.pth` trên máy grading hoặc được `predict.py` tự tải qua `--checkpoint_url`.
-
-## 6. Inference
-
-Lệnh bắt buộc theo đề bài vẫn hoạt động và tự động dùng các thiết lập inference HEM đã kiểm chứng:
+The required inference command is:
 
 ```bash
 python predict.py \
-  --image_dir ./public/val/images \
+  --image_dir /path/to/images \
   --output predictions.json
 ```
 
-Không cần truyền thêm cờ inference. Mặc định `predict.py` bật sliced inference với `short_size=704`, `max_size=1056`, tile size `640`, overlap `0.20`, score threshold `0.08`, pre-NMS top-k `1600`, NMS threshold `0.55` và tối đa `100` detection mỗi ảnh. TTA, WBF và score fusion vẫn tắt mặc định vì các thử nghiệm trước không cải thiện kết quả validation đã chọn. Chỉ dùng `--no-tile-inference` khi cần chạy full-image để debug.
+Inference automatically enables the validated tiled settings for small-object detection. These include a resize short side of `704`, maximum size `1056`, tile size `640`, tile overlap `0.20`, confidence threshold `0.08`, pre-NMS top-k `1600`, NMS threshold `0.55`, and a maximum of `100` detections per image. Test-time flipping, weighted box fusion, and score fusion are disabled by default.
 
-Nếu `models/best.pth` chưa tồn tại, `predict.py` tự động dùng fallback public GitHub Release:
+The output is a JSON array. Every image must produce an entry, including images with no detections:
+
+```json
+[
+  {
+    "image_id": "image.jpg",
+    "boxes": [
+      {
+        "class": "chair",
+        "confidence": 0.91,
+        "bbox": [48, 72, 210, 356]
+      }
+    ]
+  }
+]
+```
+
+The class must be one of the five dataset classes, confidence must be in `[0, 1]`, and bounding boxes must use original-image pixel coordinates.
+
+## Checkpoint Download
+
+The assignment does not allow model-weight files inside the submitted archive. If `models/best.pth` is absent, `predict.py` automatically downloads the final HEM checkpoint from the public GitHub Release asset:
 
 ```text
 https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/best.pth
 ```
 
-Để upload checkpoint final sau khi train xong, không commit file `.pth`. Chạy từ thư mục repository:
+The checkpoint is downloaded atomically and then loaded by the inference program. The release asset is distributed separately from the submission archive [1].
 
-```bash
-chmod +x my_submission/scripts/upload_checkpoint_release.sh
-bash my_submission/scripts/upload_checkpoint_release.sh \
-  /absolute/path/to/final_hem_checkpoint.pth
+## Submission Package
+
+Submit a compressed archive containing `my_submission/` with the source code and configuration files. Do not include the dataset, hidden annotations, runtime logs, prediction artifacts, or any `.pth`, `.pt`, or `.ckpt` file.
+
+The core submission structure is:
+
+```text
+my_submission/
+├── models/
+├── utils/
+├── configs/
+├── scripts/
+├── train.py
+├── predict.py
+├── requirements.txt
+└── README.md
 ```
 
-Script sẽ tạo hoặc cập nhật release tag `hem-final` và upload asset tên `best.pth`. Sau đó lệnh bắt buộc chỉ cần:
+The main implementation files are `models/`, `utils/`, `train.py`, and `predict.py`. The repository also contains concise utilities for checkpoint preparation, GitHub Release upload, dataset merging, and Docker-based local verification.
 
-```bash
-python predict.py \
-  --image_dir /path/to/images \
-  --output predictions.json
-```
+## Evaluation
 
-Nếu cần dùng URL khác, truyền rõ:
-
-```bash
-python predict.py \
-  --image_dir /path/to/images \
-  --output predictions.json \
-  --checkpoint models/best.pth \
-  --checkpoint_url https://example.org/best.pth \
-  --checkpoint_sha256 SHA256_OF_THE_FILE
-```
-
-`checkpoint.py` tải qua file tạm rồi đổi tên atomic; nếu cung cấp SHA256, file chỉ được dùng khi hash khớp. Vì GitHub repository hiện public, Release asset có thể được Docker giảng viên tải mà không cần GitHub token. Nếu repository được đổi sang private, phải thay fallback bằng một URL public hoặc cơ chế download được giảng viên cho phép.
-
-Để tái hiện sliced inference đã dùng khi chọn baseline HEM, dùng config:
-
-```bash
-python predict.py \
-  --config configs/predict_hem_l40s.json \
-  --image_dir ./public/val/images \
-  --output val_predictions_sliced.json \
-  --checkpoint /path/to/hem/best.pth \
-  --tile_inference
-```
-
-Kết quả phải là một JSON array. Mỗi phần tử có dạng:
-
-```json
-{
-  "image_id": "img_example.jpg",
-  "boxes": [
-    {
-      "class": "chair",
-      "confidence": 0.91,
-      "bbox": [48, 72, 210, 356]
-    }
-  ]
-}
-```
-
-Ảnh không có detection vẫn phải xuất `"boxes": []`. Confidence phải nằm trong `[0, 1]`, class phải thuộc năm lớp quy định, và box phải ở tọa độ ảnh gốc.
-
-## 7. Kiểm tra public validation
-
-Từ thư mục chứa `public`:
+Public validation can be evaluated with the supplied evaluator:
 
 ```bash
 python public/tools/evaluate_predictions.py \
   --ground_truth public/annotations/val.json \
-  --predictions val_predictions_sliced.json \
-  --output val_score.json
+  --predictions predictions.json \
+  --output score.json
 ```
 
-Validation chỉ được dùng để chọn checkpoint trước khi chốt. Sau khi gộp train + validation cho final fine-tune, merged set không còn là validation độc lập và không được dùng để báo cáo một mAP tổng quát hóa độc lập.
+The official hidden evaluation supplies only the hidden image directory to `predict.py`. Hidden annotations remain private and must not be included in the submission or mounted into the inference container.
 
-## 8. Final fine-tune trên train + validation bằng Modal L40S
-
-Chỉ thực hiện bước này **sau khi đã chốt HEM checkpoint**. Bước này không dùng targeted P2/P3.
-
-### 8.1. Chuẩn bị branch và Volume
-
-```bash
-git checkout experiment/targeted-highres-p2p3-rewrite
-git pull --ff-only origin experiment/targeted-highres-p2p3-rewrite
-```
-
-Modal Volume phải có:
-
-```text
-/data/indoor5-v2-student/public/annotations/train.json
-/data/indoor5-v2-student/public/annotations/val.json
-/data/indoor5-v2-student/public/train/images/
-/data/indoor5-v2-student/public/val/images/
-/data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth
-```
-
-Nếu cần upload dataset từ local, truyền trực tiếp thư mục `public`:
-
-```bash
-modal run my_submission/modal_app.py \
-  --action upload \
-  --local-data-dir ./indoor5-v2-student/public
-```
-
-### 8.2. Gộp annotation
-
-```bash
-modal run my_submission/modal_app.py \
-  --action merge_train_val
-```
-
-File kết quả là:
-
-```text
-/data/indoor5-v2-student/public/annotations/train_val_merged.json
-```
-
-### 8.3. Chạy HEM final fine-tune
-
-```bash
-modal run --detach my_submission/modal_app.py \
-  --action train \
-  --gpu L40S \
-  --run-name run_final_trainval_finetune_hem_l40s \
-  --config-path /root/project/my_submission/configs/train_final_trainval_finetune_hem_l40s.json \
-  --epochs 2 \
-  --batch-size 6 \
-  --amp \
-  --resume-model-only \
-  --resume-checkpoint-path /data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth \
-  --train-annotation-name train_val_merged.json \
-  --val-annotation-name train_val_merged.json \
-  --train-image-dir-name . \
-  --val-image-dir-name .
-```
-
-Config `train_final_trainval_finetune_hem_l40s.json` đặt `targeted_highres=false`, giữ `hard_negative_sampling=true`, small-object crop/sampling, radius 2.0, GIoU và HEM settings. Vì merged annotation được truyền vào cả train và validation path chỉ để đáp ứng interface hiện tại, validation bị trì hoãn trong config và không được dùng để chọn `best.pth`.
-
-Checkpoint cuối cần lấy là:
-
-```text
-/data/checkpoints/run_final_trainval_finetune_hem_l40s/last.pth
-```
-
-Tải về và đặt vào path grading:
-
-```bash
-modal volume get xla-fcos-volume \
-  /checkpoints/run_final_trainval_finetune_hem_l40s/last.pth \
-  ./final_trainval_hem_last.pth
-
-bash my_submission/scripts/prepare_exam_submission.sh ./final_trainval_hem_last.pth
-```
-
-Sau đó checkpoint grading nằm tại:
-
-```text
-my_submission/models/best.pth
-```
-
-Giữ lại bản HEM gốc làm backup. Không ghi đè `run_a_small_object_chair_hem_l40s/best.pth`.
-
-## 9. Docker grading
-
-Đề bài yêu cầu nộp thư mục `my_submission/`, không nộp lại `public/` và không đưa bất kỳ `.pth` nào vào file zip. Trên máy grading, instructor image được build từ thư mục chứa Dockerfile:
-
-```bash
-docker build -t object-detection-exam:2026 .
-```
-
-Kiểm tra public validation trước:
-
-```bash
-bash my_submission/scripts/run_exam_docker.sh \
-  ./indoor5-v2-student/public/val/images \
-  val_predictions.json \
-  ./my_submission/grading_outputs
-```
-
-Sau đó đánh giá ở ngoài container:
-
-```bash
-python3 indoor5-v2-student/public/tools/evaluate_predictions.py \
-  --ground_truth indoor5-v2-student/public/annotations/val.json \
-  --predictions my_submission/grading_outputs/val_predictions.json \
-  --output my_submission/grading_outputs/val_score.json
-```
-
-Khi instructor cung cấp thư mục ảnh hidden, chỉ thay image mount:
-
-```bash
-bash my_submission/scripts/run_exam_docker.sh \
-  /absolute/path/to/hidden/test/images \
-  hidden_predictions.json \
-  ./my_submission/grading_outputs
-```
-
-Script chỉ mount hidden images read-only, workspace submission và output directory. **Không mount hidden annotations vào container.** Hidden evaluator chạy ở ngoài container theo đúng README grading của giảng viên.
-
-## 10. Hugging Face artifact workflow
-
-Nếu dùng Hugging Face để phân phối artifact, giữ hai repository private:
-
-```text
-Khoaph/indoor5-v2-student-private
-Khoaph/fcos-indoor5-checkpoints-private
-```
-
-Upload dataset đúng từ thư mục `public`:
-
-```bash
-python3 my_submission/scripts/hf_upload_assets.py \
-  --project-root . \
-  --dataset-repo Khoaph/indoor5-v2-student-private \
-  --dataset-dir ./indoor5-v2-student/public \
-  --model-repo Khoaph/fcos-indoor5-checkpoints-private \
-  --run-name run_a_small_object_chair_hem_l40s \
-  --upload-last
-```
-
-Repository dataset sau upload phải giữ path:
-
-```text
-indoor5-v2-student/public/annotations/train.json
-indoor5-v2-student/public/annotations/val.json
-indoor5-v2-student/public/train/images/...
-indoor5-v2-student/public/val/images/...
-```
-
-Không commit HF token. Dùng `hf auth login` hoặc secret environment `HF_TOKEN`. Trên server, `hf_sync_assets.py` tải dataset về `indoor5-v2-student/public/` và checkpoint về `checkpoints/run_a_small_object_chair_hem_l40s/best.pth` nếu artifact chưa có [1].
-
-## 11. HEM architecture summary
-
-```text
-Input image
-    ↓
-Resize + normalize + horizontal flip + controlled small-object crop
-    ↓
-ConvNeXt-Small backbone
-    ↓
-BiFPN, one layer
-    ↓
-P2, P3, P4, P5, P6, P7 feature levels
-    ↓
-FCOS head
-    ├── focal classification loss
-    ├── GIoU box loss
-    └── centerness loss
-    ↓
-Center sampling radius = 2.0
-P2/P3 range overlap = 8.0
-    ↓
-Decode → confidence threshold → per-class NMS
-    ↓
-Original-image bounding boxes
-```
-
-The detector implementation is HEM-only. P1 and targeted high-resolution P2/P3 branches are intentionally not part of the final runtime, so a stale experiment cannot be selected accidentally through the cleaned repository.
-
-## 12. Academic and data-use notes
-
-The dataset contains course material and should remain private unless the instructor or dataset license explicitly permits redistribution. The data-quality and error-analysis artifacts used during development are not part of the final submission. Hidden annotations must not be copied, inspected or mounted into the submission container before official grading.
-
-The final HEM checkpoint previously achieved a sliced validation mAP@0.5 of approximately `0.693145`. This is a validation result, not a guarantee of hidden-test performance. The optional final train+validation fine-tune is an independent experiment and should not overwrite the original HEM checkpoint.
-
-[1]: https://huggingface.co/docs/huggingface_hub/en/guides/upload "Hugging Face Hub upload guide"
-
-## References
-
-[1]: https://huggingface.co/docs/huggingface_hub/en/guides/upload "Hugging Face Hub upload guide"
+[1]: https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository "GitHub Releases documentation"
