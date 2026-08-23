@@ -55,6 +55,20 @@ public/
 └── tools/evaluate_predictions.py
 ```
 
+## Environment Setup
+
+From the `my_submission` directory, install the dependencies with:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+The package requires Python 3.10 or newer, PyTorch, torchvision, `timm`, Pillow, NumPy, and tqdm. A CUDA-enabled PyTorch installation is recommended for training, while CPU execution is also supported for small inference checks.
+
+The instructor-provided grading environment may supply its own pinned dependencies. In that environment, run the commands below from the directory containing `train.py` and `predict.py`.
+
+## Data Pipeline
+
 The data loader supports multiple objects per image and the required bounding-box format:
 
 ```text
