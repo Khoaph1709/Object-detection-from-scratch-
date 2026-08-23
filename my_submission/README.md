@@ -153,13 +153,15 @@ Không commit các file `.pth` vào bài nộp. Checkpoint được dùng khi gr
 
 ## 6. Inference
 
-Lệnh bắt buộc theo đề bài vẫn hoạt động:
+Lệnh bắt buộc theo đề bài vẫn hoạt động và tự động dùng các thiết lập inference HEM đã kiểm chứng:
 
 ```bash
 python predict.py \
   --image_dir ./public/val/images \
   --output predictions.json
 ```
+
+Không cần truyền thêm cờ inference. Mặc định `predict.py` bật sliced inference với `short_size=704`, `max_size=1056`, tile size `640`, overlap `0.20`, score threshold `0.08`, pre-NMS top-k `1600`, NMS threshold `0.55` và tối đa `100` detection mỗi ảnh. TTA, WBF và score fusion vẫn tắt mặc định vì các thử nghiệm trước không cải thiện kết quả validation đã chọn. Chỉ dùng `--no-tile-inference` khi cần chạy full-image để debug.
 
 Nếu `models/best.pth` chưa tồn tại, có thể chỉ rõ nguồn checkpoint:
 

@@ -35,21 +35,26 @@ def parse_args() -> argparse.Namespace:
     add_config_argument(parser)
     parser.add_argument("--image_dir", default="")
     parser.add_argument("--output", default="")
-    parser.add_argument("--tile_inference", action="store_true")
+    parser.add_argument(
+        "--tile_inference",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use tiled/sliced inference by default; pass --no-tile-inference to disable it.",
+    )
     parser.add_argument("--tile_size", type=int, default=640)
     parser.add_argument("--tile_overlap", type=float, default=0.20)
     parser.add_argument("--checkpoint", default="models/best.pth")
     parser.add_argument("--checkpoint_url", default="")
     parser.add_argument("--checkpoint_sha256", default="")
-    parser.add_argument("--short_size", type=int, default=512)
-    parser.add_argument("--max_size", type=int, default=768)
+    parser.add_argument("--short_size", type=int, default=704)
+    parser.add_argument("--max_size", type=int, default=1056)
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--num_workers", type=int, default=0)
-    parser.add_argument("--score_threshold", type=float, default=0.05)
+    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--score_threshold", type=float, default=0.08)
     parser.add_argument("--score_cls_power", type=float, default=0.5)
     parser.add_argument("--score_centerness_power", type=float, default=0.5)
     parser.add_argument("--nms_threshold", type=float, default=0.55)
-    parser.add_argument("--pre_nms_topk", type=int, default=1000)
+    parser.add_argument("--pre_nms_topk", type=int, default=1600)
     parser.add_argument("--max_detections_per_image", type=int, default=100)
     parser.add_argument("--tta_flip", action="store_true", help="Merge original and horizontal-flip predictions.")
     parser.add_argument(
