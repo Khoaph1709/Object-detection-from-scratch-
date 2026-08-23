@@ -70,7 +70,7 @@ Bounding box luôn có dạng `[xmin, ymin, xmax, ymax]` và được tính theo
 ```text
 my_submission/
 ├── models/
-│   └── best.pth                 # không commit; tự tải khi predict nếu cần
+│   └── best.pth                 # không commit; tự tải qua GitHub Release nếu cần
 ├── utils/
 │   ├── assigner.py              # FCOS center/range assignment
 │   ├── augmentations.py         # resize, normalize, flip, small-object crop
@@ -94,7 +94,8 @@ my_submission/
 │   ├── hf_sync_assets.py         # tự tải artifact từ Hugging Face
 │   ├── merge_train_val_annotations.py
 │   ├── prepare_exam_submission.sh
-│   └── run_exam_docker.sh
+│   ├── run_exam_docker.sh
+│   └── upload_checkpoint_release.sh
 ├── configs/
 │   ├── train_hem_l40s.json
 │   ├── predict_hem_l40s.json
@@ -163,18 +164,40 @@ python predict.py \
 
 Không cần truyền thêm cờ inference. Mặc định `predict.py` bật sliced inference với `short_size=704`, `max_size=1056`, tile size `640`, overlap `0.20`, score threshold `0.08`, pre-NMS top-k `1600`, NMS threshold `0.55` và tối đa `100` detection mỗi ảnh. TTA, WBF và score fusion vẫn tắt mặc định vì các thử nghiệm trước không cải thiện kết quả validation đã chọn. Chỉ dùng `--no-tile-inference` khi cần chạy full-image để debug.
 
-Nếu `models/best.pth` chưa tồn tại, có thể chỉ rõ nguồn checkpoint:
+Nếu `models/best.pth` chưa tồn tại, `predict.py` tự động dùng fallback public GitHub Release:
+
+```text
+https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/hem-best.pth
+```
+
+Để upload checkpoint final sau khi train xong, không commit file `.pth`. Chạy từ thư mục repository:
+
+```bash
+chmod +x my_submission/scripts/upload_checkpoint_release.sh
+bash my_submission/scripts/upload_checkpoint_release.sh \
+  /absolute/path/to/final_hem_checkpoint.pth
+```
+
+Script sẽ tạo hoặc cập nhật release tag `hem-final` và upload asset tên `hem-best.pth`. Sau đó lệnh bắt buộc chỉ cần:
 
 ```bash
 python predict.py \
-  --image_dir ./public/val/images \
+  --image_dir /path/to/images \
+  --output predictions.json
+```
+
+Nếu cần dùng URL khác, truyền rõ:
+
+```bash
+python predict.py \
+  --image_dir /path/to/images \
   --output predictions.json \
   --checkpoint models/best.pth \
   --checkpoint_url https://example.org/hem-best.pth \
   --checkpoint_sha256 SHA256_OF_THE_FILE
 ```
 
-Trong bài nộp thật, thay URL mẫu bằng URL checkpoint riêng có quyền truy cập phù hợp. `checkpoint.py` tải qua file tạm rồi đổi tên atomic; nếu cung cấp SHA256, file chỉ được dùng khi hash khớp.
+`checkpoint.py` tải qua file tạm rồi đổi tên atomic; nếu cung cấp SHA256, file chỉ được dùng khi hash khớp. Vì GitHub repository hiện public, Release asset có thể được Docker giảng viên tải mà không cần GitHub token. Nếu repository được đổi sang private, phải thay fallback bằng một URL public hoặc cơ chế download được giảng viên cho phép.
 
 Để tái hiện sliced inference đã dùng khi chọn baseline HEM, dùng config:
 

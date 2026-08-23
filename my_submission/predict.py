@@ -11,6 +11,9 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CHECKPOINT_URL = (
+    "https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/hem-best.pth"
+)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -44,7 +47,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tile_size", type=int, default=640)
     parser.add_argument("--tile_overlap", type=float, default=0.20)
     parser.add_argument("--checkpoint", default="models/best.pth")
-    parser.add_argument("--checkpoint_url", default="")
+    parser.add_argument(
+        "--checkpoint_url",
+        default=DEFAULT_CHECKPOINT_URL,
+        help="Fallback URL used when --checkpoint is missing locally.",
+    )
     parser.add_argument("--checkpoint_sha256", default="")
     parser.add_argument("--short_size", type=int, default=704)
     parser.add_argument("--max_size", type=int, default=1056)
