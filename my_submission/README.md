@@ -381,3 +381,53 @@ Pin revision giúp một lần train luôn lấy đúng phiên bản dataset và
 
 [1]: https://huggingface.co/docs/huggingface_hub/en/guides/upload "Hugging Face Hub upload guide"
 [2]: https://huggingface.co/docs/huggingface_hub/en/guides/download "Hugging Face Hub download guide"
+
+## Final train+validation fine-tune and exam grading
+
+After the model and hyperparameters are frozen, an optional final fine-tune can use the labeled train and validation images together. This is not an independent validation run; keep the previously selected checkpoint as a backup. The merge script preserves `train/images/...` and `val/images/...` in the merged JSON and uses `indoor5-v2-student/public/` as the common image root.
+
+On Modal L40S, first create the merged annotation inside the existing Volume:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action merge_train_val
+```
+
+Then launch the final two-epoch fine-tune. Replace the resume path only if a different final checkpoint was selected:
+
+```bash
+modal run --detach my_submission/modal_app.py \
+  --action train \
+  --gpu L40S \
+  --run-name run_final_trainval_finetune_l40s \
+  --config-path /root/project/my_submission/configs/train_final_trainval_finetune_l40s.json \
+  --epochs 2 \
+  --batch-size 6 \
+  --amp \
+  --resume-model-only \
+  --resume-checkpoint-path /data/checkpoints/run_a_small_object_chair_hem_l40s/best.pth \
+  --train-annotation-name train_val_merged.json \
+  --val-annotation-name train_val_merged.json \
+  --train-image-dir-name . \
+  --val-image-dir-name .
+```
+
+The final fine-tune intentionally does not use the merged set as an independent validation set. It saves the final state at `/data/checkpoints/run_final_trainval_finetune_l40s/last.pth`. Download that file, then prepare the grading checkpoint without committing the `.pth` file:
+
+```bash
+modal volume get xla-fcos-volume \
+  /checkpoints/run_final_trainval_finetune_l40s/last.pth \
+  ./final_trainval_last.pth
+bash my_submission/scripts/prepare_exam_submission.sh ./final_trainval_last.pth
+```
+
+The instructor README defines the Docker contract. Build the instructor image from the directory containing its Dockerfile, then run predictions with only the read-only test image mount. Never mount hidden annotations into the submission container:
+
+```bash
+bash my_submission/scripts/run_exam_docker.sh \
+  /absolute/path/to/hidden/test/images \
+  hidden_predictions.json \
+  ./grading_outputs
+```
+
+The hidden evaluator remains outside the container. The final hidden score can only be produced on the instructor/grading machine that has the hidden image mount and evaluator; this repository does not contain hidden labels or the instructor Dockerfile.

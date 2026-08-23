@@ -48,6 +48,45 @@ TRAIN_RETRIES = modal.Retries(initial_delay=0.0, max_retries=10)
 
 @app.function(
     volumes={str(VOLUME_MOUNT): volume},
+    cpu=2.0,
+    memory=8192,
+    timeout=60 * 60,
+)
+def merge_train_val_remote(
+    output_name: str = "train_val_merged.json",
+) -> dict:
+    """Merge only the labeled train/val annotations inside the Modal Volume."""
+    data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
+    train_path = data_root / "annotations" / "train.json"
+    valid_path = data_root / "annotations" / "val.json"
+    output_path = data_root / "annotations" / output_name
+    require_path(train_path)
+    require_path(valid_path)
+    command = [
+        sys.executable,
+        str(REMOTE_SUBMISSION / "scripts" / "merge_train_val_annotations.py"),
+        "--train",
+        str(train_path),
+        "--valid",
+        str(valid_path),
+        "--output",
+        str(output_path),
+        "--image-root",
+        str(data_root),
+    ]
+    print("Running merge command:")
+    print(" ".join(shlex.quote(part) for part in command))
+    subprocess.run(command, cwd=str(REMOTE_PROJECT), check=True)
+    volume.commit()
+    return {
+        "output": str(output_path),
+        "train": str(train_path),
+        "valid": str(valid_path),
+    }
+
+
+@app.function(
+    volumes={str(VOLUME_MOUNT): volume},
     cpu=8.0,
     memory=32768,
     timeout=24 * 60 * 60,
@@ -68,12 +107,22 @@ def train_remote(
     resume_model_only: bool = False,
     resume_checkpoint_name: str = "",
     resume_checkpoint_path: str = "",
+    train_annotation_name: str = "train.json",
+    val_annotation_name: str = "val.json",
+    train_image_dir_name: str = "train/images",
+    val_image_dir_name: str = "val/images",
 ) -> dict:
     checkpoint_dir = VOLUME_MOUNT / "checkpoints" / run_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     data_root = VOLUME_MOUNT / "indoor5-v2-student" / "public"
-    require_path(data_root / "annotations" / "train.json")
-    require_path(data_root / "annotations" / "val.json")
+    train_annotation = data_root / "annotations" / train_annotation_name
+    val_annotation = data_root / "annotations" / val_annotation_name
+    train_image_dir = data_root / train_image_dir_name
+    val_image_dir = data_root / val_image_dir_name
+    require_path(train_annotation)
+    require_path(val_annotation)
+    require_path(train_image_dir)
+    require_path(val_image_dir)
 
     command = [
         sys.executable,
@@ -81,13 +130,13 @@ def train_remote(
         "--config",
         config_path,
         "--train_data",
-        str(data_root / "annotations" / "train.json"),
+        str(train_annotation),
         "--val_data",
-        str(data_root / "annotations" / "val.json"),
+        str(val_annotation),
         "--image_dir",
-        str(data_root / "train" / "images"),
+        str(train_image_dir),
         "--val_image_dir",
-        str(data_root / "val" / "images"),
+        str(val_image_dir),
         "--checkpoint_dir",
         str(checkpoint_dir),
         "--device",
@@ -435,12 +484,20 @@ def main(
     resume_model_only: bool = False,
     resume_checkpoint_name: str = "",
     resume_checkpoint_path: str = "",
+    train_annotation_name: str = "train.json",
+    val_annotation_name: str = "val.json",
+    train_image_dir_name: str = "train/images",
+    val_image_dir_name: str = "val/images",
 ) -> None:
     if action == "upload":
         upload_dataset(local_data_dir)
         return
     if action == "upload_checkpoint":
         upload_checkpoint(local_checkpoint_dir, run_name)
+        return
+    if action == "merge_train_val":
+        result = merge_train_val_remote.remote(output_name="train_val_merged.json")
+        print(json.dumps(result, indent=2))
         return
     if action == "upload_images":
         upload_images(local_image_dir, remote_image_dir)
@@ -461,6 +518,10 @@ def main(
             resume_model_only=resume_model_only,
             resume_checkpoint_name=resume_checkpoint_name,
             resume_checkpoint_path=resume_checkpoint_path,
+            train_annotation_name=train_annotation_name,
+            val_annotation_name=val_annotation_name,
+            train_image_dir_name=train_image_dir_name,
+            val_image_dir_name=val_image_dir_name,
         )
         result = train_call.get()
         print(json.dumps(result, indent=2))

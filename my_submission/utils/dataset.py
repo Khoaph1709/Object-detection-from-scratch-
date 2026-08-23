@@ -72,8 +72,12 @@ class DetectionDataset(Dataset):
         if direct_path.exists():
             return direct_path
 
-        file_name = Path(image_info["file_name"]).name
-        fallback_path = self.image_root / file_name
+        file_name = Path(image_info["file_name"])
+        if not file_name.is_absolute():
+            relative_path = self.image_root / file_name
+            if relative_path.exists():
+                return relative_path
+        fallback_path = self.image_root / file_name.name
         if fallback_path.exists():
             return fallback_path
 
