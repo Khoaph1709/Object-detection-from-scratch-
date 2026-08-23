@@ -33,7 +33,7 @@
   "backpack_negative_weight": 1.0,
   "quality_aware_cls": false,
   "hard_negative_sampling": true,
-  "mined_sampler_weights": "/data/checkpoints/run_a_radius2_small_object_crop_sampler_l40s/chair_hard_example_weights.json",
+  "mined_sampler_weights": "",
   "empty_image_weight": 1.0,
   "chair_positive_image_weight": 1.0,
   "backpack_positive_image_weight": 1.0,
