@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CHECKPOINT_URL = (
-    "https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/hem-best.pth"
+    "https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/best.pth"
 )
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

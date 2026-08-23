@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="${GITHUB_REPO:-Khoaph1709/Object-detection-from-scratch-}"
 TAG="${GITHUB_RELEASE_TAG:-hem-final}"
-ASSET_NAME="${GITHUB_RELEASE_ASSET:-hem-best.pth}"
+ASSET_NAME="${GITHUB_RELEASE_ASSET:-best.pth}"
 SOURCE_CHECKPOINT="${1:-}"
 
 if [[ -z "$SOURCE_CHECKPOINT" ]]; then

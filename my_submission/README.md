@@ -167,7 +167,7 @@ Không cần truyền thêm cờ inference. Mặc định `predict.py` bật sli
 Nếu `models/best.pth` chưa tồn tại, `predict.py` tự động dùng fallback public GitHub Release:
 
 ```text
-https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/hem-best.pth
+https://github.com/Khoaph1709/Object-detection-from-scratch-/releases/download/hem-final/best.pth
 ```
 
 Để upload checkpoint final sau khi train xong, không commit file `.pth`. Chạy từ thư mục repository:
@@ -178,7 +178,7 @@ bash my_submission/scripts/upload_checkpoint_release.sh \
   /absolute/path/to/final_hem_checkpoint.pth
 ```
 
-Script sẽ tạo hoặc cập nhật release tag `hem-final` và upload asset tên `hem-best.pth`. Sau đó lệnh bắt buộc chỉ cần:
+Script sẽ tạo hoặc cập nhật release tag `hem-final` và upload asset tên `best.pth`. Sau đó lệnh bắt buộc chỉ cần:
 
 ```bash
 python predict.py \
@@ -193,7 +193,7 @@ python predict.py \
   --image_dir /path/to/images \
   --output predictions.json \
   --checkpoint models/best.pth \
-  --checkpoint_url https://example.org/hem-best.pth \
+  --checkpoint_url https://example.org/best.pth \
   --checkpoint_sha256 SHA256_OF_THE_FILE
 ```
 
